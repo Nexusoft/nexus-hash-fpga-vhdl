@@ -284,7 +284,7 @@ begin
 	generic map
 	(
 	FIFO_WIDTH => 8,
-	FIFO_DEPTH => 256
+	FIFO_DEPTH => 512
 	)
 	PORT MAP (
 		clk => clk,
@@ -305,7 +305,7 @@ begin
 	generic map
 	(
 	FIFO_WIDTH => 256,
-	FIFO_DEPTH => 256
+	FIFO_DEPTH => 64
 	)
 	PORT MAP (
 		clk => clk,
@@ -343,7 +343,7 @@ begin
 	generic map
 	(
 	FIFO_WIDTH => 8,
-	FIFO_DEPTH => 256
+	FIFO_DEPTH => 512
 	)
 	PORT MAP (
 		clk => clk,
