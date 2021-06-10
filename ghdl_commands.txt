@@ -31,3 +31,23 @@ The ack response "{K}" received from the simulated uart should be displayed alon
 to view the waveform (caution - runs slow)
 ghdl -r --workdir=work nexus_uart_tb --wave=./work/nexus_uart_tb.ghw --ieee-asserts=disable-at-0
 gtkwave ./work/nexus_uart_tb.ghw
+
+to build and run nxs_uart_tb
+ghdl -i --workdir=work --std=08 ./nxs_uart_tb.vhd
+ghdl -i --workdir=work --std=08 ./nxs_hash_tb.vhd
+ghdl -i --workdir=work --std=08 ./nxs_hash_uart_tb.vhd
+ghdl -i --workdir=work --std=08 ./uart/comp/*.vhd
+ghdl -i --workdir=work --std=08 ./uart/uart.vhd
+ghdl -i --workdir=work --std=08 ./nxs_hash/*.vhd
+ghdl -i --workdir=work --std=08 ./uart_interface/*.vhd
+ghdl -m --workdir=work --std=08 nexus_uart_tb
+ghdl -m --workdir=work --std=08 nexus_hash_tb
+ghdl -m --workdir=work --std=08 nexus_hash_uart_tb
+
+
+to run nexus_uart_tb
+ghdl -r --workdir=work nexus_uart_tb --ieee-asserts=disable-at-0
+to run nexus_hash_tb
+ghdl -r --workdir=work nexus_hash_tb --ieee-asserts=disable-at-0
+to run nexus_hash_uart_tb
+ghdl -r --workdir=work nexus_hash_uart_tb --ieee-asserts=disable-at-0

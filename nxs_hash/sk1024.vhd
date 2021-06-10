@@ -26,7 +26,7 @@ entity sk1024 is
 		key2		: in key_type;
 		message2	: in state_type;
 		read_ack	: out std_logic;  -- read acknowlege
-		result		: out unsigned(447 downto 0);  -- return just the uppder 7 words
+		result		: out unsigned(31 downto 0);  -- return just the upper 32 bits of the hash
 		result_valid: out std_logic
 	);
 	end sk1024;
@@ -36,7 +36,7 @@ architecture rtl of sk1024 is
 	signal skein_result, fifo_data_out	: std_logic_vector(1023 downto 0);  
 	signal skein_result_valid, fifo_empty : std_logic;
 	
-	signal keccak_result	: unsigned(447 downto 0);  
+	signal keccak_result	: unsigned(31 downto 0);  
 	signal keccak_result_valid, keccak_ready, fifo_rdreq : std_logic;
 	signal keccak_reset, fifo_loaded : std_logic := '0'; 
 	constant KECCAK_STARTUP_DELAY : integer := 26;  -- delay to allow fifo to fill up after reset.  Must be at least as long as one keccak round.

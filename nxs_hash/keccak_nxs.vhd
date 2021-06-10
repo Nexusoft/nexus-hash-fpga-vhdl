@@ -24,9 +24,9 @@ entity keccak_nxs is
 	(
 		clk			: in std_logic;
 		reset		: in std_logic;
-		ready		: out std_logic;
-		message		: in std_logic_vector(1023 downto 0);
-		result		: out unsigned(447 downto 0);  -- only return the upper 7 words
+		ready		: out std_logic; -- able to accept input
+		message		: in std_logic_vector(1023 downto 0);  -- input to the hash
+		result		: out unsigned(31 downto 0);  -- return the upper 32 bits of the hash result
 		result_valid: out std_logic
 	);
 	end keccak_nxs;
@@ -39,7 +39,6 @@ architecture rtl of keccak_nxs is
 	constant KECCAK_TOTAL_STAGES : integer := 6 * KECCAK_PIPELINE_STAGES;
 	type k_state_array_type is array (0 to KECCAK_PIPELINE_STAGES - 1) of k_state;  -- keccak state pipeline type
 	type k_message_array_type is array (0 to KECCAK_PIPELINE_STAGES - 1) of k_message;  -- pipeline array for the message chunks
-	--type valid_array_type is array(0 to KECCAK_PIPELINE_STAGES - 1) of std_logic;  -- valid bit
 	type keccak_state_type is (ROUND1_A, ROUND1_B);
 	
 	-- keccak state pipelines
@@ -48,11 +47,11 @@ architecture rtl of keccak_nxs is
 	signal k_state_pipe_3 : k_state_array_type := (others => (others => (others => (others => '0'))));
 
 
-	-- message pipeline
+	-- message shift register
 	signal k_message_pipe : k_message_array_type := (others => (others => (others => '0')));
 	
 	
-	signal result_i : unsigned(447 downto 0) := (others => '0');
+	signal result_i : unsigned(31 downto 0) := (others => '0');
 	signal result_valid_i : std_logic := '0';
 	signal valid_counter : integer range 0 to KECCAK_TOTAL_STAGES := 0;
 	signal pipeline_counter : integer range 0 to KECCAK_PIPELINE_STAGES := 0;
@@ -86,11 +85,12 @@ architecture rtl of keccak_nxs is
 	end procedure SLV_to_message;
 	
 	function f_state_to_output (ks : in k_state) return unsigned is
-		variable output : unsigned (447 downto 0);
+		variable output : unsigned (31 downto 0); --(447 downto 0);
 		begin
-			for ii in 0 to 6 loop
-				output(64*ii + 63 downto 64*ii) := unsigned(ks(ii / 5)(ii mod 5));
-			end loop;
+			--for ii in 0 to 6 loop
+				--output(64*ii + 63 downto 64*ii) := unsigned(ks(ii / 5)(ii mod 5));
+			--end loop
+			output := unsigned(ks(1)(1)(63 downto 32));
 			
 			return output;
 	end function f_state_to_output;
@@ -119,6 +119,7 @@ architecture rtl of keccak_nxs is
 			end loop;
 		return temp_state;
 	end function f_State_XOR;
+	
 	
 begin
 
@@ -179,10 +180,16 @@ begin
 					k_state_pipe_3(0) <= f_keccak_A(k_state_pipe_2(KECCAK_PIPELINE_STAGES - 1));
 					k_state_pipe_3(1) <= f_keccak_B(k_state_pipe_3(0),f_round_constant(0));
 					
+					--advance the message shift register during round A
+					for ii in 1 to KECCAK_PIPELINE_STAGES - 1 loop
+						k_message_pipe(ii) <= k_message_pipe(ii-1);
+					end loop;
+					
+					
 				when ROUND1_B => 
 					-- super round 1 second half
 					k_state_pipe_1(0) <= f_keccak_A(k_state_pipe_1(KECCAK_PIPELINE_STAGES - 1)); 				
-					k_message_pipe(0) <= k_message_pipe(KECCAK_PIPELINE_STAGES - 1);
+					--k_message_pipe(0) <= k_message_pipe(KECCAK_PIPELINE_STAGES - 1);
 					k_state_pipe_1(1) <= f_keccak_B(k_state_pipe_1(0),f_round_constant(KECCAK_PIPELINE_STAGES/2));
 					
 					-- super round 2 second half
@@ -195,8 +202,6 @@ begin
 					
 				when others =>
 			end case;
-			-- for every case
-			k_message_pipe(1) <= k_message_pipe(0);
 
 			-- Iterate the rest of the rounds of keccak
 			for ii in 1 to KECCAK_PIPELINE_STAGES/2 - 1 loop
@@ -216,9 +221,6 @@ begin
 				k_state_pipe_3(2*ii) <= f_keccak_A(k_state_pipe_3(2*ii-1));
 				k_state_pipe_3(2*ii+1) <= f_keccak_B(k_state_pipe_3(2*ii),f_round_constant(temp_round));
 				
-				--message pipe
-				k_message_pipe(2*ii) <= k_message_pipe(2*ii-1);
-				k_message_pipe(2*ii+1) <= k_message_pipe(2*ii);
 				
 			end loop;
 			result_i <= f_state_to_output(k_state_pipe_3(KECCAK_PIPELINE_STAGES - 1));
