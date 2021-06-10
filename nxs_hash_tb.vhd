@@ -38,8 +38,8 @@ architecture beh of nexus_hash_tb is
 	signal nonce, expected_nonce, initial_nonce : unsigned (63 downto 0) := (others => '0');
 	signal key2 : key_type;
 	signal message2 : state_type;
-	signal activity_counter, found_counter : unsigned(31 downto 0);
-	signal bitsTarget : unsigned (31 downto 0);  
+	signal found_counter : unsigned(31 downto 0);
+	-- signal bitsTarget : unsigned (31 downto 0);  
 	signal clock_counter : natural := 0;	
 	
 begin
@@ -89,7 +89,7 @@ begin
 	initial_nonce <= expected_nonce - 10;
 	key2 <= (x"88AC877DCC3D9F5B", x"0CE6F8BE43BA5FA4", x"65AF0210816973D7", x"ED0029D7DD5FA14C", x"F0D019FEEBA16EC7", x"4D0E1BD4235DAE9F", x"D510716EA14E5A89", x"59ADF0434406532B", x"F58F5153DCFE34A4", x"494553ABAEAC4A2B", x"05574FFA0116287B", x"B5F44CE1F0D31096", x"56B3513630FDD8DB", x"A06515574CDD6BD3", x"A7447037B78D79EC", x"8EDB8035835CFB1F", x"BBF337D66036F952");
 	message2 <= (x"6D3A302500000902", x"14B8EC919EA8A234", x"7C414429A6160DF5", x"2294C73850B42243", x"EBF6BE905FD49A41", x"88F75004AA5B07BE", x"43C26A3140193ED0", x"FC4207CD30FD1C4F", x"0000000231F5A458", x"7B032ED8001EDF6C", initial_nonce, x"0000000000000000", x"0000000000000000", x"0000000000000000", x"0000000000000000", x"0000000000000000");
-	bitsTarget <= x"7B032ED8";
+	-- bitsTarget <= x"7B032ED8";
 	
 	nxs_hash: entity work.nxs_hash
 	port map
@@ -98,11 +98,9 @@ begin
 		reset => reset,
 		key2 => key2,
 		message2 => message2,
-		bits_target => bitsTarget,
 		nonce => nonce,
 		found => found,
-		found_counter => found_counter,
-		activity_counter => activity_counter
+		found_counter => found_counter
 	);
 	
 	
