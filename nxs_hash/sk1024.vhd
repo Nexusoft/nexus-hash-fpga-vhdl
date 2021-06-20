@@ -34,14 +34,20 @@ entity sk1024 is
 architecture rtl of sk1024 is
 
 	signal skein_result, fifo_data_out	: std_logic_vector(1023 downto 0);  
-	signal skein_result_valid, fifo_empty : std_logic;
+	signal skein_result_valid, fifo_empty, fifo_full : std_logic := '0';
 	
 	signal keccak_result	: unsigned(31 downto 0);  
 	signal keccak_result_valid, keccak_ready, fifo_rdreq : std_logic;
 	signal keccak_reset, fifo_loaded : std_logic := '0'; 
-	constant KECCAK_STARTUP_DELAY : integer := 26;  -- delay to allow fifo to fill up after reset.  Must be at least as long as one keccak round.
+	
 	signal keccak_startup_delay_counter : integer range 0 to 26 := 0; 
-	signal skein_nonce_in : unsigned (63 downto 0);
+	signal valid_skein_count : integer range 0 to 255 := 0;
+	signal fifo_nonce_out_slv : std_logic_vector(63 downto 0) := (others => '0');
+	signal skein_nonce_in, skein_nonce_out, fifo_nonce_out : unsigned (63 downto 0) := (others => '0');
+	
+	constant KECCAK_STARTUP_DELAY : integer := 13;  -- delay to allow fifo to fill up after reset.  Must be long enough to avoid emptying the fifo when keccak starts.
+	constant STATE_FIFO_DEPTH : integer := KECCAK_STARTUP_DELAY + 2;
+	
 	
 --	--altera
 --	Component fifo_1024
@@ -103,23 +109,43 @@ begin
 			if reset = '1' then
 				fifo_loaded <= '0';
 				keccak_startup_delay_counter <= 0;
+				valid_skein_count <= 0;
 			else
+				if valid_skein_count < KECCAK_STARTUP_DELAY then 
+					if skein_result_valid = '1' then
+						valid_skein_count <= valid_skein_count + 1;
+					end if;
+					fifo_loaded <= '0';
+				else
+					fifo_loaded <= '1';
+				end if;
+				
+				if fifo_loaded = '1' and fifo_empty = '1' then
+					report "error - fifo empty detected.";
+				end if;
+				if fifo_full = '1' then
+					report "error - fifo full detected.";
+				end if;
+				if fifo_nonce_out = x"00000004ECF83A53" and fifo_rdreq = '1' then
+					report to_hstring(fifo_nonce_out) & " to keccak with state: " & to_hstring(fifo_data_out(1023 downto 960)) & "...";
+				end if;
+				
 				-- in theory once the fifo has data in it, it should never become empty again unless there is a system reset.
 				-- after reset make wait a bit to fill up the fifo sufficiently before reading from it.
-				if fifo_empty = '0' then
-					-- fifo has something in it.  
-					if keccak_startup_delay_counter < KECCAK_STARTUP_DELAY then
-						-- we are just starting up.  wait a bit.
-						keccak_startup_delay_counter <= keccak_startup_delay_counter + 1;
-						fifo_loaded <= '0';
-					else
-						-- fifo is sufficiently loaded.  ok to start reading from it.
-						fifo_loaded <= '1';
-					end if;
-				else
-					-- fifo is empty
-					fifo_loaded <= '0';
-				end if;
+				-- if fifo_empty = '0' then
+					-- -- fifo has something in it.  
+					-- if keccak_startup_delay_counter < KECCAK_STARTUP_DELAY then
+						-- -- we are just starting up.  wait a bit.
+						-- keccak_startup_delay_counter <= keccak_startup_delay_counter + 1;
+						-- fifo_loaded <= '0';
+					-- else
+						-- -- fifo is sufficiently loaded.  ok to start reading from it.
+						-- fifo_loaded <= '1';
+					-- end if;
+				-- else
+					-- -- fifo is empty
+					-- fifo_loaded <= '0';
+				-- end if;
 			end if;
 		end if;
 	end process;
@@ -133,18 +159,19 @@ begin
 		message2 => message2,
 		read_ack => read_ack,
 		result => skein_result,
+		nonce_out => skein_nonce_out,
 		result_valid => skein_result_valid
 	);
 	
 	skein_nonce_in <= message2(10); -- nonce part of the input message to skein for debug.
 
 
-	-- for best performance in an FPGA, I suggest instatiating the FIFO using the ip wizard or hardware specific primitives.   
+	-- skein hash result fifo
 	fifo_1024 : entity work.fifo
 	generic map
 	(
 	FIFO_WIDTH => 1024,
-	FIFO_DEPTH => 128,
+	FIFO_DEPTH => STATE_FIFO_DEPTH,
 	FIRST_WORD_FALL_THROUGH => true
 	)
     port map 
@@ -154,11 +181,32 @@ begin
 		din => skein_result,
 		rd_en => fifo_rdreq,
 		wr_en => skein_result_valid,
-		full => open,
+		full => fifo_full,
 		dout => fifo_data_out,
 		empty => fifo_empty
 	);
+	
+	-- nonce fifo
+	fifo_nonce : entity work.fifo
+	generic map
+	(
+	FIFO_WIDTH => 64,
+	FIFO_DEPTH => STATE_FIFO_DEPTH,
+	FIRST_WORD_FALL_THROUGH => true
+	)
+    port map 
+	(
+		clk => clk,
+		srst => reset,
+		din => std_logic_vector(skein_nonce_out),
+		rd_en => fifo_rdreq,
+		wr_en => skein_result_valid,
+		full => open,
+		dout => fifo_nonce_out_slv,
+		empty => open
+	);
 
+	fifo_nonce_out <= unsigned(fifo_nonce_out_slv);
 	
 --	xilinx_fifo : fifo_1024_wide_128_deep
 --	  PORT MAP (

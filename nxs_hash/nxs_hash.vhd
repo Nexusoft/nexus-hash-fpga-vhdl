@@ -27,7 +27,6 @@ entity nxs_hash is
 		message2	: in state_type;
 		nonce		: out unsigned(63 downto 0); -- current nonce or nonce that solves the hash when found = 1
 		found		: out std_logic
-		--found_counter	: out unsigned(31 downto 0)
 	);
 	end nxs_hash;
 
@@ -115,6 +114,7 @@ begin
 								if hash_upper32 = 0 then  -- check if the leading 32 bits of the hash are all zeros.
 									nonce_found <= '1';
 									nonce_found_out <= nonce_out + 1;
+									report "nxs_hash found a nonce " & to_hstring(nonce_out + 1);
 									--found_count <= found_count + 1;
 								end if;
 								-- when a valid answer comes out the other end, increment the output nonce.  This is the nonce adjusted for the pipeline length
