@@ -75,24 +75,24 @@ architecture rtl of sk1024 is
 --	END COMPONENT;
 
 -- generic fifo
-component fifo is
-	generic
-	(
-		FIFO_WIDTH : natural := 1024;
-		FIFO_DEPTH : natural := 128
-    );
-	port 
-	(
-		clk		: in std_logic;
-		srst	: in std_logic;
-		din		: in std_logic_vector(FIFO_WIDTH-1 downto 0); -- data in
-		wr_en	: in std_logic; -- write enable
-		rd_en	: in  std_logic;
-		dout 	: out std_logic_vector(FIFO_WIDTH-1 downto 0);
-		full	: out std_logic;
-		empty   : out std_logic
-	);
-	end component fifo;
+-- component fifo is
+	-- generic
+	-- (
+		-- FIFO_WIDTH : natural := 1024;
+		-- FIFO_DEPTH : natural := 128
+    -- );
+	-- port 
+	-- (
+		-- clk		: in std_logic;
+		-- srst	: in std_logic;
+		-- din		: in std_logic_vector(FIFO_WIDTH-1 downto 0); -- data in
+		-- wr_en	: in std_logic; -- write enable
+		-- rd_en	: in  std_logic;
+		-- dout 	: out std_logic_vector(FIFO_WIDTH-1 downto 0);
+		-- full	: out std_logic;
+		-- empty   : out std_logic
+	-- );
+	-- end component fifo;
 	
 	
 begin
@@ -140,11 +140,12 @@ begin
 
 
 	-- for best performance in an FPGA, I suggest instatiating the FIFO using the ip wizard or hardware specific primitives.   
-	fifo_1024 : fifo
+	fifo_1024 : entity work.fifo
 	generic map
 	(
 	FIFO_WIDTH => 1024,
-	FIFO_DEPTH => 64
+	FIFO_DEPTH => 128,
+	FIRST_WORD_FALL_THROUGH => true
 	)
     port map 
 	(

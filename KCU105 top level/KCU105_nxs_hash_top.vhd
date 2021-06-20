@@ -48,15 +48,13 @@ architecture beh of KCU105_nxs_hash_top is
 	signal locked, uart_rxd, uart_txd : std_logic;
 	signal blinkCounter : unsigned(31 downto 0);
 	
-	signal found, new_work, found_count_increased : std_logic := '0';
-	signal nonce : unsigned (63 downto 0) := (others => '0'); 
+	signal found, found_i, found_ii, new_work : std_logic := '0';
+	signal nonce, nonce_i : unsigned (63 downto 0) := (others => '0'); 
 	signal key2 : key_type := (others => (others => '0'));
 	signal message2 : state_type := (others => (others => '0'));  
-	signal hash_enable : std_logic := '0';
 	signal found_counter, found_counter_i : unsigned(31 downto 0) := (others => '0');
 	
 	
-
 	--xilinx pll
 	component clk_wiz_0
 	port
@@ -75,12 +73,11 @@ architecture beh of KCU105_nxs_hash_top is
 
 begin
 		
-		
 	reset_async <= CPU_RESET;
 	GPIO_LED_0_LS <= blinkCounter(24);
 	GPIO_LED_1_LS <= uart_rxd;
 	GPIO_LED_2_LS <= uart_txd;
-	GPIO_LED_3_LS <= hash_enable;
+	GPIO_LED_3_LS <= '0';
 	GPIO_LED_4_LS <= found_counter(0); 
 	GPIO_LED_5_LS <= found; 
 	USB_UART_RX <= uart_txd;  --swap rx and tx
@@ -97,56 +94,40 @@ begin
 		 clk_in1_n => CLK_125MHZ_N
 	 );
 	
-	
 	-- reset synchronize
-	process(clk_hash)
+	process(clk_sys)
 	begin
-		if rising_edge(clk_hash) then
+		if rising_edge(clk_sys) then
 			reset_i <= reset_async;
 			reset_ii <= reset_i;
 			reset <= reset_ii;
 		end if;
 	end process;
 	
-	-- reset the hash_block when new work is delivered
-	hash_reset <= reset_ii or new_work;
-	found_count_increased <= '1' when found_counter > found_counter_i else '0';
+	
+	process(clk_hash)
+	begin
+		if rising_edge(clk_hash) then
+			-- reset the hash_block when new work is delivered
+			hash_reset <= reset_ii or new_work;
+		end if;
+	end process;
 	
 	
 	process(clk_sys)
 	begin
 		if rising_edge(clk_sys) then
 			blinkCounter <= blinkCounter + 1; -- blink LED
-			found_counter_i <= found_counter;  -- when crossing clock domains from fast to slow we could miss the nonce_found signal so we monitor the change in found count instead
+			found_i <= found; 
+			nonce_i <= nonce;
+			if found_i = '0' and found = '1' then -- assert found when it transitions from high to low to avoid multiple founds
+				found_ii <= '1';
+				found_counter <= found_counter + 1;
+			else
+				found_ii <= '0';
+			end if;
 		end if;
 	end process;
-	
-	
-	-- communication interface and registers
-	-- uart_framer_i: entity work.uart_framer
-	 -- generic map (
-        -- CLK_FREQ    => 50e6,
-        -- BAUD_RATE   => 115200,
-        -- PARITY_BIT  => "none"
-    -- )
-    -- port map (
-        -- clk         => clk_sys,
-        -- reset         => reset,
-        -- -- UART INTERFACE
-        -- uart_txd    => uart_txd,
-        -- uart_rxd    => uart_rxd,
-        -- --user inputs to the framer
-        -- nonce => nonce,
-        -- nonce_found => found,
-		-- found_counter => found_counter,
-		-- -- debug inputs
-		-- activity_counter => activity_counter,
-        -- --user outputs from the framer
-        -- skein_key2 => key2,
-        -- skein_message2 => message2,
-		-- bits_target => bitsTarget,
-        -- hash_enable => hash_enable
-    -- );
 	
 	-- communication interface and registers
 	uart_nexus_interface_i: entity work.uart_nexus_interface
@@ -161,8 +142,8 @@ begin
         uart_txd    => uart_txd,  -- tx to the host
         uart_rxd    => uart_rxd,  -- rx from the host
         --user inputs to the uart interface
-        nonce => nonce,
-        nonce_found => found_count_increased,
+        nonce => nonce_i,
+        nonce_found => found_ii,
         --user outputs from the uart interface
         skein_key2 => key2,
         skein_message2 => message2,
@@ -179,8 +160,7 @@ begin
 		key2 => key2,
 		message2 => message2,
 		nonce => nonce,
-		found => found,
-		found_counter => found_counter
+		found => found
 	);
 	
 end beh;

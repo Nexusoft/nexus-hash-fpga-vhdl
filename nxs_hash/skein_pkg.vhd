@@ -33,8 +33,24 @@ package skein_pkg is
 	constant T2 : tweak_type := (x"00000000000000D8", x"B000000000000000", x"B0000000000000D8");
 	constant T3 : tweak_type := (x"0000000000000008", x"FF00000000000000", x"FF00000000000008");
 	
-	-- Threefish Flavors 
-	type threefish_flavor is (FIXED_MESSAGE, FIXED_KEY);
+	type skein_pipe_status_type is (JUNK, NOT_STARTED, A_IN_PROCESS, A_DONE, B_IN_PROCESS, B_DONE);
+	
+	-- record (like a struct in c) used to combine data for easier pipelining
+	type skein_pipe_type is record
+		state  	: state_type;
+		tweak   : tweak_type;
+		key  	: key_type;
+		nonce	: unsigned(63 downto 0);
+		status	: skein_pipe_status_type;
+	end record skein_pipe_type;
+	
+	constant skein_pipe_init : skein_pipe_type := (state => (others =>(others => '0')),
+                                              tweak => T2,
+                                              key => (others =>(others => '0')),
+											  nonce => (others=> '0'),
+											  status => JUNK
+											  );
+
 	
 	-- function prototypes
 	

@@ -1,0 +1,23 @@
+
+
+KCU105 125MHz clock comes from Si5335 which has typical period jitter of 10ps.  This is significantly lower than Xilinx default of 80ps.  
+Optimize clock jitter settings to get maximum timing margin
+
+part temperature grade?
+
+vivado settings
+synthesis
+directive - performanceOptimized - try others?
+retiming  - doesn't do anything
+fsm_extraction - one_hot vs auto
+keep_equivalent_registers - 
+resource_sharing - off
+-no_lc  - off.  setting this true causes the LUT usage to go way up - more than what the part can hold.  maybe try it on a single module?
+
+-retiming is supposed to optimize pipeline register positions.  I can't get it to work.  emailed Jeff 6/15/21
+
+implementation
+
+
+timing constraints
+set multipath cycle constraints for nets that change infrequently like the work package input and the nonce output

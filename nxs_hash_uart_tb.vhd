@@ -45,8 +45,10 @@ architecture beh of nexus_hash_uart_tb is
 	signal timeout_counter : integer range 0 to TIMEOUT_COUNT_LIMIT := TIMEOUT_COUNT_LIMIT;
 
 	
-	signal found, found_count_increased, new_work : std_logic := '0';
-	signal nonce, expected_nonce : unsigned (63 downto 0) := (others => '0'); 
+	signal found_count_increased, new_work : std_logic := '0';
+	signal expected_nonce : unsigned (63 downto 0) := (others => '0'); 
+	signal found, found_i, found_ii: std_logic := '0';
+	signal nonce, nonce_i, previous_nonce : unsigned (63 downto 0) := (others => '0'); 
 	signal key2 : key_type := (others => (others => '0'));
 	signal message2 : state_type := (others => (others => '0'));
 
@@ -107,8 +109,8 @@ begin
         uart_txd    => uart_txd,  -- tx to the host
         uart_rxd    => uart_rxd,  -- rx from the host
         --user inputs to the uart interface
-        nonce => nonce,
-        nonce_found => found_count_increased,
+        nonce => nonce_i,
+        nonce_found => found_ii,
         --user outputs from the uart interface
         skein_key2 => key2,
         skein_message2 => message2,
@@ -124,8 +126,7 @@ begin
 		key2 => key2,
 		message2 => message2,
 		nonce => nonce,
-		found => found,
-		found_counter => found_counter
+		found => found
 	);
 	
 	found_count_increased <= '1' when found_counter > found_counter_i else '0';
@@ -163,8 +164,19 @@ begin
 		-- elsif rising_edge(clk250) then
 		-- end if;
 	-- end process;
-	
-	
+	process(clk50)
+	begin
+		if rising_edge(clk50) then
+			found_i <= found; 
+			nonce_i <= nonce;
+			if found_i = '0' and found = '1' then -- assert found when it transitions from high to low to avoid multiple founds
+				found_ii <= '1';
+				found_counter <= found_counter + 1;
+			else
+				found_ii <= '0';
+			end if;
+		end if;
+	end process;
 
 	test_uart_send : process(reset, clk50)
         file filein : text open read_mode is "sim_nexus_work_package_in_1.txt";

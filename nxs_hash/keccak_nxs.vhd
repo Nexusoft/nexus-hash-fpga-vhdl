@@ -37,9 +37,10 @@ architecture rtl of keccak_nxs is
 	constant KECCAK_ROUNDS : integer := 24;  -- each super round contains 24 rounds.
 	constant KECCAK_PIPELINE_STAGES : integer := KECCAK_ROUNDS;  -- two stages per round for 12 rounds.  
 	constant KECCAK_TOTAL_STAGES : integer := 6 * KECCAK_PIPELINE_STAGES;
+	constant KECCAK_STATE_COUNTER_MAX : integer := KECCAK_ROUNDS * 2;  -- the state machine repeats every 48 clocks. 
 	type k_state_array_type is array (0 to KECCAK_PIPELINE_STAGES - 1) of k_state;  -- keccak state pipeline type
 	type k_message_array_type is array (0 to KECCAK_PIPELINE_STAGES - 1) of k_message;  -- pipeline array for the message chunks
-	type keccak_state_type is (ROUND1_A, ROUND1_B);
+	type keccak_state_type is (ROUND_A, ROUND_B);
 	
 	-- keccak state pipelines
 	signal k_state_pipe_1 : k_state_array_type := (others => (others => (others => (others => '0'))));
@@ -50,13 +51,14 @@ architecture rtl of keccak_nxs is
 	-- message shift register
 	signal k_message_pipe : k_message_array_type := (others => (others => (others => '0')));
 	
-	
+	signal round_index : integer range 0 to KECCAK_ROUNDS := 0;
 	signal result_i : unsigned(31 downto 0) := (others => '0');
-	signal result_valid_i : std_logic := '0';
+	signal result_valid_i, result_valid_ii : std_logic := '0';
 	signal valid_counter : integer range 0 to KECCAK_TOTAL_STAGES := 0;
-	signal pipeline_counter : integer range 0 to KECCAK_PIPELINE_STAGES := 0;
-	signal keccak_state : keccak_state_type := ROUND1_A;
-	--signal ready_i	: std_logic := 0;
+	signal pipeline_counter : integer range 0 to KECCAK_PIPELINE_STAGES - 1 := 0;
+	signal keccak_state_counter : integer range 0 to KECCAK_STATE_COUNTER_MAX - 1 := 0;
+	signal keccak_state : keccak_state_type := ROUND_A;
+	signal ready_i	: std_logic := '0';
 	
 	procedure SLV_to_message ( k_state_slv : in std_logic_vector(1023 downto 0);
 								 k_message_1 : out k_message;
@@ -127,58 +129,79 @@ begin
 	variable temp_state : k_state;
 	variable m1, m2 : k_message;
 	variable temp_round : integer range 0 to KECCAK_ROUNDS - 1;
+	variable next_keccak_state_count : integer range 0 to KECCAK_STATE_COUNTER_MAX - 1;
 	
 	begin
 		if rising_edge(clk) then
 			if reset = '1' then
 				valid_counter <= 0;
 				result_valid_i <= '0';
-				keccak_state <= ROUND1_A;
+				keccak_state_counter <= 0;
+				keccak_state <= ROUND_A;
 				pipeline_counter <= 0;
+				round_index <= 0;
+				ready_i <= '0';
 			else
-				-- keep track of where we are in the pipeline
-				if pipeline_counter < KECCAK_PIPELINE_STAGES - 1 then
-					pipeline_counter <= pipeline_counter + 1;
+				
+				if keccak_state_counter < KECCAK_STATE_COUNTER_MAX - 1 then
+					next_keccak_state_count := keccak_state_counter + 1;
 				else
-					pipeline_counter <= 0;
-					-- swap states every time we go through one full round.
-					if keccak_state = ROUND1_A then
-						keccak_state <= ROUND1_B;
-					else
-						keccak_state <= ROUND1_A;
-					end if;
-				end if;	
-			
+					next_keccak_state_count := 0;
+				end if;
+				keccak_state_counter <= next_keccak_state_count;
+				
+				pipeline_counter <= (keccak_state_counter) mod KECCAK_PIPELINE_STAGES;
+				keccak_state <= ROUND_A when keccak_state_counter < KECCAK_PIPELINE_STAGES else ROUND_B;
+				round_index <= ((keccak_state_counter) mod KECCAK_PIPELINE_STAGES)/2;
+				-- output results are valid when we are reading in new data in round 1
+				result_valid_i <= '1' when keccak_state = ROUND_A and valid_counter >= KECCAK_TOTAL_STAGES else '0';
+				-- start reading next input in time for round A start
+				ready_i <= '1' when (keccak_state_counter) < KECCAK_PIPELINE_STAGES else '0';
+				-- keep track of where we are in the pipeline
+				-- if pipeline_counter < KECCAK_PIPELINE_STAGES - 1 then
+					-- pipeline_counter <= pipeline_counter + 1;
+				-- else
+					-- pipeline_counter <= 0;
+					-- -- swap states every time we go through one full round.
+					-- if keccak_state = ROUND_A then
+						-- keccak_state <= ROUND_B;
+					-- else
+						-- keccak_state <= ROUND_A;
+					-- end if;
+				-- end if;	
+				
+				
 				if valid_counter < KECCAK_TOTAL_STAGES then
 					valid_counter <= valid_counter + 1;
-				else
-					if keccak_state = ROUND1_A then
-						-- output results are valid when we are reading in new data in round 1
-						result_valid_i <= '1';
-					else 
-						result_valid_i <= '0';
-					end if;
 				end if;
+				-- else
+					-- if keccak_state = ROUND_A then
+						-- -- output results are valid when we are reading in new data in round 1
+						-- result_valid_i <= '1';
+					-- else 
+						-- result_valid_i <= '0';
+					-- end if;
+				-- end if;
 			end if;
 			
 			case keccak_state is
-				when ROUND1_A => 
+				when ROUND_A => 
 					-- Keccak super round 1 - first half
 					-- absorb the input string into the keccak state 
 					SLV_to_message(message, m1, m2);
 					temp_state := f_message_to_state(m1);
 					k_state_pipe_1(0) <= f_keccak_A(temp_state); -- do first round and save
 					k_message_pipe(0) <= m2; -- save the rest of the message for later
-					k_state_pipe_1(1) <= f_keccak_B(k_state_pipe_1(0),f_round_constant(0));
+					--k_state_pipe_1(1) <= f_keccak_B(k_state_pipe_1(0),f_round_constant(0));
 					
 					-- super round 2 first half
 					temp_state := f_State_XOR(k_state_pipe_1(KECCAK_PIPELINE_STAGES - 1), k_message_pipe(KECCAK_PIPELINE_STAGES - 1));
 					k_state_pipe_2(0) <= f_keccak_A(temp_state);
-					k_state_pipe_2(1) <= f_keccak_B(k_state_pipe_2(0),f_round_constant(0));
+					--k_state_pipe_2(1) <= f_keccak_B(k_state_pipe_2(0),f_round_constant(0));
 					
 					--super round 3 first half
 					k_state_pipe_3(0) <= f_keccak_A(k_state_pipe_2(KECCAK_PIPELINE_STAGES - 1));
-					k_state_pipe_3(1) <= f_keccak_B(k_state_pipe_3(0),f_round_constant(0));
+					--k_state_pipe_3(1) <= f_keccak_B(k_state_pipe_3(0),f_round_constant(0));
 					
 					--advance the message shift register during round A
 					for ii in 1 to KECCAK_PIPELINE_STAGES - 1 loop
@@ -186,31 +209,35 @@ begin
 					end loop;
 					
 					
-				when ROUND1_B => 
+				when ROUND_B => 
+					--temp_round := 0 when round_index = 6 else KECCAK_PIPELINE_STAGES/2;
 					-- super round 1 second half
 					k_state_pipe_1(0) <= f_keccak_A(k_state_pipe_1(KECCAK_PIPELINE_STAGES - 1)); 				
 					--k_message_pipe(0) <= k_message_pipe(KECCAK_PIPELINE_STAGES - 1);
-					k_state_pipe_1(1) <= f_keccak_B(k_state_pipe_1(0),f_round_constant(KECCAK_PIPELINE_STAGES/2));
+					--k_state_pipe_1(1) <= f_keccak_B(k_state_pipe_1(0),f_round_constant(KECCAK_PIPELINE_STAGES/2));
 					
 					-- super round 2 second half
 					k_state_pipe_2(0) <= f_keccak_A(k_state_pipe_2(KECCAK_PIPELINE_STAGES - 1)); 
-					k_state_pipe_2(1) <= f_keccak_B(k_state_pipe_2(0),f_round_constant(KECCAK_PIPELINE_STAGES/2));
+					--k_state_pipe_2(1) <= f_keccak_B(k_state_pipe_2(0),f_round_constant(KECCAK_PIPELINE_STAGES/2));
 					
 					-- super round 3 second half
 					k_state_pipe_3(0) <= f_keccak_A(k_state_pipe_3(KECCAK_PIPELINE_STAGES - 1)); 
-					k_state_pipe_3(1) <= f_keccak_B(k_state_pipe_3(0),f_round_constant(KECCAK_PIPELINE_STAGES/2));
+					--k_state_pipe_3(1) <= f_keccak_B(k_state_pipe_3(0),f_round_constant(KECCAK_PIPELINE_STAGES/2));
 					
 				when others =>
 			end case;
+			
+			
+			temp_round := 0 when (keccak_state = ROUND_B and pipeline_counter <= 0) or (keccak_state = ROUND_A and pipeline_counter > 0) else KECCAK_ROUNDS/2;
+			k_state_pipe_1(1) <= f_keccak_B(k_state_pipe_1(0),f_round_constant(temp_round));
+			k_state_pipe_2(1) <= f_keccak_B(k_state_pipe_2(0),f_round_constant(temp_round));
+			k_state_pipe_3(1) <= f_keccak_B(k_state_pipe_3(0),f_round_constant(temp_round));
 
 			-- Iterate the rest of the rounds of keccak
 			for ii in 1 to KECCAK_PIPELINE_STAGES/2 - 1 loop
 				-- which round?
-				if (keccak_state = ROUND1_A and ii <= pipeline_counter/2) or (keccak_state = ROUND1_B and ii > pipeline_counter/2) then 
-					temp_round := ii;
-				else
-					temp_round := (ii + KECCAK_PIPELINE_STAGES/2);
-				end if;
+				
+				temp_round := ii when (keccak_state = ROUND_B and pipeline_counter <= 2*ii) or (keccak_state = ROUND_A  and pipeline_counter > 2*ii) else ii + KECCAK_ROUNDS/2;
 						
 				k_state_pipe_1(2*ii) <= f_keccak_A(k_state_pipe_1(2*ii-1));
 				k_state_pipe_1(2*ii+1) <= f_keccak_B(k_state_pipe_1(2*ii),f_round_constant(temp_round));
@@ -224,13 +251,13 @@ begin
 				
 			end loop;
 			result_i <= f_state_to_output(k_state_pipe_3(KECCAK_PIPELINE_STAGES - 1));
-			
+			--result_valid_ii <= result_valid_i;
 		end if;
 	end process;
 
 	result_valid <= result_valid_i;
 	result <= result_i;
-	ready <= '1' when (reset = '0') and (keccak_state = ROUND1_A) else '0';
+	ready <= '1' when (reset = '0') and (ready_i = '1') else '0';
 	
 	
 end rtl;

@@ -94,24 +94,24 @@ architecture beh of uart_nexus_interface is
 	
 	
 	-- generic fifo
-	component fifo is
-	generic
-	(
-		FIFO_WIDTH : natural := 1024;
-		FIFO_DEPTH : natural := 128
-    );
-	port 
-	(
-		clk		: in std_logic;
-		srst	: in std_logic;
-		din		: in std_logic_vector(FIFO_WIDTH-1 downto 0); -- data in
-		wr_en	: in std_logic; -- write enable
-		rd_en	: in  std_logic;
-		dout 	: out std_logic_vector(FIFO_WIDTH-1 downto 0);
-		full	: out std_logic;
-		empty   : out std_logic
-	);
-	end component fifo;
+	-- component fifo is
+	-- generic
+	-- (
+		-- FIFO_WIDTH : natural := 1024;
+		-- FIFO_DEPTH : natural := 128
+    -- );
+	-- port 
+	-- (
+		-- clk		: in std_logic;
+		-- srst	: in std_logic;
+		-- din		: in std_logic_vector(FIFO_WIDTH-1 downto 0); -- data in
+		-- wr_en	: in std_logic; -- write enable
+		-- rd_en	: in  std_logic;
+		-- dout 	: out std_logic_vector(FIFO_WIDTH-1 downto 0);
+		-- full	: out std_logic;
+		-- empty   : out std_logic
+	-- );
+	-- end component fifo;
 
     
 begin
@@ -216,7 +216,7 @@ begin
 	-- Transmit side message flow from high level to low.  There are two fifos.  The first holds nonces ready to send.  The second is a byte queue that feeds the uart.
 	
 	-- nonce transmit buffer
-	nonce_fifo_i : fifo
+	nonce_fifo_i : entity work.fifo
 	generic map
 	(
 	FIFO_WIDTH => 64,
@@ -265,7 +265,7 @@ begin
 				
 	
 	-- uart byte stream transmit buffer
-	uart_tx_fifo : fifo
+	uart_tx_fifo : entity work.fifo
 	generic map
 	(
 	FIFO_WIDTH => 8,

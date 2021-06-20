@@ -33,14 +33,18 @@ architecture beh of nexus_hash_tb is
 	
 	--signal header : std_logic_vector(1727 downto 0);
 	--signal result, expected_result, keccak_in : std_logic_vector(1023 downto 0);
-	signal found : std_logic := '0';
+	signal found, found_i, found_ii : std_logic := '0';
 	signal nonce_matches : boolean;
-	signal nonce, expected_nonce, initial_nonce : unsigned (63 downto 0) := (others => '0');
+	signal nonce, nonce_i, expected_nonce, initial_nonce, previous_nonce : unsigned (63 downto 0) := (others => '0');
 	signal key2 : key_type;
 	signal message2 : state_type;
 	signal found_counter : unsigned(31 downto 0);
 	-- signal bitsTarget : unsigned (31 downto 0);  
-	signal clock_counter : natural := 0;	
+	signal clock_counter : natural := 0;
+	constant total_latency : integer := 477*2 + 500;
+	
+	constant nonce_starting_offset : integer := 511; 
+
 	
 begin
 	
@@ -86,7 +90,7 @@ begin
 	expected_nonce <= x"00000004ECF83A53";
 	-- key2 and message2 are precalculated by the software.
 	-- normally the initial nonce will be zero, but for simulation set it to something close to the answer
-	initial_nonce <= expected_nonce - 10;
+	initial_nonce <= expected_nonce - nonce_starting_offset;
 	key2 <= (x"88AC877DCC3D9F5B", x"0CE6F8BE43BA5FA4", x"65AF0210816973D7", x"ED0029D7DD5FA14C", x"F0D019FEEBA16EC7", x"4D0E1BD4235DAE9F", x"D510716EA14E5A89", x"59ADF0434406532B", x"F58F5153DCFE34A4", x"494553ABAEAC4A2B", x"05574FFA0116287B", x"B5F44CE1F0D31096", x"56B3513630FDD8DB", x"A06515574CDD6BD3", x"A7447037B78D79EC", x"8EDB8035835CFB1F", x"BBF337D66036F952");
 	message2 <= (x"6D3A302500000902", x"14B8EC919EA8A234", x"7C414429A6160DF5", x"2294C73850B42243", x"EBF6BE905FD49A41", x"88F75004AA5B07BE", x"43C26A3140193ED0", x"FC4207CD30FD1C4F", x"0000000231F5A458", x"7B032ED8001EDF6C", initial_nonce, x"0000000000000000", x"0000000000000000", x"0000000000000000", x"0000000000000000", x"0000000000000000");
 	-- bitsTarget <= x"7B032ED8";
@@ -99,21 +103,36 @@ begin
 		key2 => key2,
 		message2 => message2,
 		nonce => nonce,
-		found => found,
-		found_counter => found_counter
+		found => found
+		--found_counter => found_counter
 	);
 	
+	process(clk)
+	begin
+		if rising_edge(clk) then
+			found_i <= found; 
+			nonce_i <= nonce;
+			if found_i = '1' then
+				previous_nonce <= nonce_i;
+			end if;
+		end if;
+	end process;
+	found_ii <= '1' when found_i = '1' and nonce_i /= previous_nonce else '0';
 	
-	nonce_matches <= nonce = expected_nonce;
-	assert clock_counter < 1000 report "Reached Simulation End Time." severity FAILURE;
+	
+	
+	nonce_matches <= nonce_i = expected_nonce;
+	assert clock_counter < total_latency + nonce_starting_offset*2 + 60 report "Reached Simulation End Time. " & to_string(clock_counter) severity FAILURE;
 	
 	test : process
 	begin
-		wait until (found = '1' and startup_done = '1' and nonce_matches);
-		report "found nonce " & to_hstring(nonce);
-		wait until clk = '1';
-		wait until clk = '1';
-		wait until clk = '1';
+		wait until (found_ii = '1' and startup_done = '1' and nonce_matches);
+		report "found nonce " & to_hstring(nonce) & " at clock " & to_string(clock_counter);
+		
+		for jj in 1 to 50 loop
+			wait until clk = '1';
+		end loop;
+		
 		finish;
 	end process;
 end beh;

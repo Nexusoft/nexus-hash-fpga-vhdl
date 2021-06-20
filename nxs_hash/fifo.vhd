@@ -13,7 +13,8 @@ entity fifo is
 	generic
 	(
 		FIFO_WIDTH : natural := 64;
-		FIFO_DEPTH : natural := 128
+		FIFO_DEPTH : natural := 128;
+		FIRST_WORD_FALL_THROUGH : boolean := true
     );
 	port 
 	(
@@ -36,6 +37,8 @@ architecture rtl of fifo is
 	signal write_index : integer range 0 to FIFO_DEPTH-1 := 0;
 	signal read_index : integer range 0 to FIFO_DEPTH-1 := 0;
 	signal full_i, empty_i : std_logic := '0';
+	signal max_count : integer range 0 to FIFO_DEPTH := 0;
+	signal dout_i : std_logic_vector(FIFO_WIDTH-1 downto 0);
 	
 begin
 	process(clk)
@@ -68,19 +71,36 @@ begin
 				elsif wr_en = '0' and rd_en = '1' and empty_i = '0' then
 					fifo_count <= fifo_count - 1;
 				end if;
+				if fifo_count > max_count then
+					max_count <= fifo_count;
+					if FIFO_WIDTH = 1024 then
+						report "max fifo count " & to_string(fifo_count);
+					end if;
+				end if;
 				-- write
 				if wr_en = '1' then
 					fifo_data(write_index) <= din;
 				end if;
+				dout_i <= fifo_data(read_index);
 			end if;
 		end if;
+		
 	end process;
    
    -- data out 
-	dout <= fifo_data(read_index);
+	fwft: if FIRST_WORD_FALL_THROUGH generate
+		dout <= fifo_data(read_index);
+	end generate fwft;
+	
+	not_fwft: if not FIRST_WORD_FALL_THROUGH generate
+		dout <= dout_i;
+	end generate not_fwft;
+	
 	full_i  <= '1' when fifo_count = FIFO_DEPTH else '0';
 	empty_i <= '1' when fifo_count = 0 else '0';
 	full <= full_i;
 	empty <= empty_i;
+	
+	
 	
 end rtl;
