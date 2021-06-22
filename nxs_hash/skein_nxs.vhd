@@ -109,13 +109,13 @@ begin
 				case skein_round_out.status is
 					when A_DONE => 
 						skein_in_i <= skein_round_out;
-						skein_in_i.tweak <= T3;
+						--skein_in_i.tweak <= T3;
 						skein_make_key_in <= skein_in_i;
 						input_governor <= 0;
 						read_ack_i <= '0';
 					when others =>
 						skein_in_i.state <= message2;
-						skein_in_i.tweak <= T2;
+						--skein_in_i.tweak <= T2;
 						skein_in_i.key <= key2;
 						skein_in_i.nonce <= message2(10);
 						if input_governor <  input_governor_count - 1 then  -- limit input to skein to minimize WIP

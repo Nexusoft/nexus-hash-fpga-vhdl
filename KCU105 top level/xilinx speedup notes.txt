@@ -17,7 +17,21 @@ resource_sharing - off
 -retiming is supposed to optimize pipeline register positions.  I can't get it to work.  emailed Jeff 6/15/21
 
 implementation
+opt_design explore
+place_design explore
+post place phys_opt_design explore
+route_design explore
+post route phys_opt_design explore
 
 
-timing constraints
-set multipath cycle constraints for nets that change infrequently like the work package input and the nonce output
+#timing constraints
+set multipath cycle constraints between fast and slow clocks.  make sure all transitions between fast and slow domain are stretched out or buffered appropriately to avoid metastability.
+set_multicycle_path -setup -start -from [get_clocks *hash_clk*] -to [get_clocks *sys_clk*] 8
+set_multicycle_path -hold -from [get_clocks *hash_clk*] -to [get_clocks *sys_clk*] 7
+set_multicycle_path -setup -from [get_clocks *sys_clk*] -to [get_clocks *hash_clk*] 8
+set_multicycle_path -hold -end -from [get_clocks *sys_clk*] -to [get_clocks *hash_clk*] 7
+
+
+module level synthesizer settings
+set_property BLOCK_SYNTH.LUT_COMBINING 0 [get_cells nxs_hash/sk1024/skein]
+

@@ -38,14 +38,14 @@ package skein_pkg is
 	-- record (like a struct in c) used to combine data for easier pipelining
 	type skein_pipe_type is record
 		state  	: state_type;
-		tweak   : tweak_type;
+		--tweak   : tweak_type;
 		key  	: key_type;
 		nonce	: unsigned(63 downto 0);
 		status	: skein_pipe_status_type;
 	end record skein_pipe_type;
 	
 	constant skein_pipe_init : skein_pipe_type := (state => (others =>(others => '0')),
-                                              tweak => T2,
+                                              --tweak => T2,
                                               key => (others =>(others => '0')),
 											  nonce => (others=> '0'),
 											  status => JUNK

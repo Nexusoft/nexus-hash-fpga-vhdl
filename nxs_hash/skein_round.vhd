@@ -33,7 +33,7 @@ architecture rtl of skein_round is
 	
 	constant TF_ROUNDS : integer := 80; 
 	constant SUBKEY_ADDS :  integer := 21;
-	constant EXTRA_STAGES : integer := 2;  --extra stages at the end for the optimizer to move around
+	constant EXTRA_STAGES : integer := 0;  --extra stages at the end for the optimizer to move around
 	constant TF_PIPELINE_STAGES : integer := TF_ROUNDS*3 + SUBKEY_ADDS*2 + 2 + EXTRA_STAGES; -- 80 threefish rounds plus 21 subkey adds + extra stages
 	
 	
@@ -60,6 +60,7 @@ begin
 		variable round : integer range 0 to TF_ROUNDS;
 		variable pipe : integer range 0 to TF_PIPELINE_STAGES - 1;
 		variable subkey_round : integer range 0 to SUBKEY_ADDS - 1;
+		variable tweak :  tweak_type;
 		
 	begin
 		if rising_edge(clk) then			
@@ -111,7 +112,8 @@ begin
 				
 				-- generate subkey
 				skein_pipe(pipe) <= skein_pipe(pipe-1);
-				subkey(subkey_round) <= f_Get_Subkey(subkey_round, skein_pipe(pipe-1).tweak, skein_pipe(pipe-1).key);
+				tweak := T3 when skein_pipe(pipe-1).status = B_IN_PROCESS else T2;
+				subkey(subkey_round) <= f_Get_Subkey(subkey_round, tweak, skein_pipe(pipe-1).key);
 				pipe := pipe + 1;
 				
 				--add subkey to the state
@@ -135,7 +137,8 @@ begin
 			
 			-- generate final subkey
 			skein_pipe(pipe) <= skein_pipe(pipe-1);
-			subkey(subkey_round) <= f_Get_Subkey(subkey_round, skein_pipe(pipe-1).tweak, skein_pipe(pipe-1).key);
+			tweak := T3 when skein_pipe(pipe-1).status = B_IN_PROCESS else T2;
+			subkey(subkey_round) <= f_Get_Subkey(subkey_round, tweak, skein_pipe(pipe-1).key);
 			pipe := pipe + 1;
 			
 			--add final subkey to the state

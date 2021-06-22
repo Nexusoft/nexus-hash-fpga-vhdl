@@ -187,24 +187,24 @@ begin
 	);
 	
 	-- nonce fifo
-	fifo_nonce : entity work.fifo
-	generic map
-	(
-	FIFO_WIDTH => 64,
-	FIFO_DEPTH => STATE_FIFO_DEPTH,
-	FIRST_WORD_FALL_THROUGH => true
-	)
-    port map 
-	(
-		clk => clk,
-		srst => reset,
-		din => std_logic_vector(skein_nonce_out),
-		rd_en => fifo_rdreq,
-		wr_en => skein_result_valid,
-		full => open,
-		dout => fifo_nonce_out_slv,
-		empty => open
-	);
+	-- fifo_nonce : entity work.fifo
+	-- generic map
+	-- (
+	-- FIFO_WIDTH => 64,
+	-- FIFO_DEPTH => STATE_FIFO_DEPTH,
+	-- FIRST_WORD_FALL_THROUGH => true
+	-- )
+    -- port map 
+	-- (
+		-- clk => clk,
+		-- srst => reset,
+		-- din => std_logic_vector(skein_nonce_out),
+		-- rd_en => fifo_rdreq,
+		-- wr_en => skein_result_valid,
+		-- full => open,
+		-- dout => fifo_nonce_out_slv,
+		-- empty => open
+	-- );
 
 	fifo_nonce_out <= unsigned(fifo_nonce_out_slv);
 	
