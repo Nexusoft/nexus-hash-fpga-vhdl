@@ -23,11 +23,13 @@ entity keccak_nxs is
 	port
 	(
 		clk			: in std_logic;
-		reset		: in std_logic;
-		ready		: out std_logic; -- able to accept input
+		--reset		: in std_logic;
+		read_ack	: out std_logic; 
 		message		: in std_logic_vector(1023 downto 0);  -- input to the hash
+		nonce_in	: in unsigned (63 downto 0);  -- nonce associated with the message for tracking purposes
 		result		: out unsigned(31 downto 0);  -- return the upper 32 bits of the hash result
-		result_valid: out std_logic
+		--result_valid: out std_logic;
+		nonce_out	: out unsigned(63 downto 0)
 	);
 	end keccak_nxs;
 
@@ -35,229 +37,166 @@ architecture rtl of keccak_nxs is
 	
 	-- keccak pipeline types
 	constant KECCAK_ROUNDS : integer := 24;  -- each super round contains 24 rounds.
-	constant KECCAK_PIPELINE_STAGES : integer := KECCAK_ROUNDS;  -- two stages per round for 12 rounds.  
-	constant KECCAK_TOTAL_STAGES : integer := 6 * KECCAK_PIPELINE_STAGES;
-	constant KECCAK_STATE_COUNTER_MAX : integer := KECCAK_ROUNDS * 2;  -- the state machine repeats every 48 clocks. 
-	type k_state_array_type is array (0 to KECCAK_PIPELINE_STAGES - 1) of k_state;  -- keccak state pipeline type
-	type k_message_array_type is array (0 to KECCAK_PIPELINE_STAGES - 1) of k_message;  -- pipeline array for the message chunks
-	type keccak_state_type is (ROUND_A, ROUND_B);
+	--constant KECCAK_PIPELINE_STAGES : integer := KECCAK_ROUNDS;  -- two stages per round for 12 rounds.  
+	--constant KECCAK_TOTAL_STAGES : integer := 6 * KECCAK_PIPELINE_STAGES;
+	--constant KECCAK_STATE_COUNTER_MAX : integer := KECCAK_ROUNDS * 2;  -- the state machine repeats every 48 clocks. 
+	--type k_state_array_type is array (0 to KECCAK_PIPELINE_STAGES - 1) of k_state;  -- keccak state pipeline type
+	--type k_message_array_type is array (0 to KECCAK_PIPELINE_STAGES - 1) of k_message;  -- pipeline array for the message chunks
+	--type keccak_state_type is (ROUND_A, ROUND_B);
 	
 	-- keccak state pipelines
-	signal k_state_pipe_1 : k_state_array_type := (others => (others => (others => (others => '0'))));
-	signal k_state_pipe_2 : k_state_array_type := (others => (others => (others => (others => '0'))));
-	signal k_state_pipe_3 : k_state_array_type := (others => (others => (others => (others => '0'))));
+	--signal k_state_pipe_1 : k_state_array_type := (others => (others => (others => (others => '0'))));
+	--signal k_state_pipe_2 : k_state_array_type := (others => (others => (others => (others => '0'))));
+	--signal k_state_pipe_3 : k_state_array_type := (others => (others => (others => (others => '0'))));
 
 
 	-- message shift register
+	--signal k_message_pipe : k_message_array_type := (others => (others => (others => '0')));
+	
+	--signal round_index : integer range 0 to KECCAK_ROUNDS := 0;
+	signal result_i : unsigned(31 downto 0) := (others => '0');
+	--signal result_valid_i, result_valid_ii, result_valid_2 : std_logic := '0';
+	--signal valid_counter : integer range 0 to KECCAK_TOTAL_STAGES := 0;
+	--signal pipeline_counter : integer range 0 to KECCAK_PIPELINE_STAGES - 1 := 0;
+	--signal keccak_state_counter : integer range 0 to KECCAK_STATE_COUNTER_MAX - 1 := 0;
+	--signal keccak_state : keccak_state_type := ROUND_A;
+	--signal ready_i	: std_logic := '0';
+	signal nonce_out_i : unsigned(63 downto 0) := (others => '0');
+	
+	--new method
+	constant PIPELINE_STAGES_PER_ROUND : integer := 2;
+	constant FOLD : integer := 2;  -- Number of clocks per hash.  Must be a factor of 24.  i.e. 1, 2, 3, 4, 6, 8, 12, 24
+	constant KECCAK_ARRAY_LENGTH : integer := KECCAK_ROUNDS/FOLD+1;
+	constant MESSAGE_ARRAY_LENGTH : integer := KECCAK_ARRAY_LENGTH*PIPELINE_STAGES_PER_ROUND-1;
+	type keccak_array_type is array (0 to KECCAK_ARRAY_LENGTH - 1) of keccak_pipe_type;
+	signal keccak_data_1 : keccak_array_type := (others => keccak_pipe_init);
+	signal keccak_data_2 : keccak_array_type := (others => keccak_pipe_init);
+	signal keccak_data_3 : keccak_array_type := (others => keccak_pipe_init);
+
+	type k_message_array_type is array (0 to MESSAGE_ARRAY_LENGTH - 1) of k_message;  -- pipeline array for the message chunks
 	signal k_message_pipe : k_message_array_type := (others => (others => (others => '0')));
 	
-	signal round_index : integer range 0 to KECCAK_ROUNDS := 0;
-	signal result_i : unsigned(31 downto 0) := (others => '0');
-	signal result_valid_i, result_valid_ii : std_logic := '0';
-	signal valid_counter : integer range 0 to KECCAK_TOTAL_STAGES := 0;
-	signal pipeline_counter : integer range 0 to KECCAK_PIPELINE_STAGES - 1 := 0;
-	signal keccak_state_counter : integer range 0 to KECCAK_STATE_COUNTER_MAX - 1 := 0;
-	signal keccak_state : keccak_state_type := ROUND_A;
-	signal ready_i	: std_logic := '0';
-	
-	procedure SLV_to_message ( k_state_slv : in std_logic_vector(1023 downto 0);
-								 k_message_1 : out k_message;
-								 k_message_2 : out k_message) is
-		-- convert a 1024 bit std_logic_vector into two array of words for absorbtion
-		variable m1, m2 : k_message;
-		begin
-			-- first set of words
-			for ii in 0 to 8 loop -- words
-				for jj in 0 to 7 loop  -- bytes
-					m1(ii)(8*jj+7 downto 8*jj) := k_state_slv(1023 - (64*ii+8*jj) downto 1023 - (64*ii+8*jj) - 7);
-				end loop;
-			end loop;
-			-- second set of words
-			for ii in 0 to 6 loop
-				for jj in 0 to 7 loop
-					m2(ii)(8*jj+7 downto 8*jj) := k_state_slv(1023 - 576 - (64*ii+8*jj) downto 1023 - 576 - (64*ii+8*jj) - 7);
-				end loop;
-			end loop;
-			m2(7)(63 downto 0) := NXS_SUFFIX_1;
-			m2(8)(63 downto 0) := NXS_SUFFIX_2;
-			k_message_1 := m1;
-			k_message_2 := m2;
-			
-			-- the last two words are the constant suffix
-	end procedure SLV_to_message;
-	
-	function f_state_to_output (ks : in k_state) return unsigned is
-		variable output : unsigned (31 downto 0); --(447 downto 0);
-		begin
-			--for ii in 0 to 6 loop
-				--output(64*ii + 63 downto 64*ii) := unsigned(ks(ii / 5)(ii mod 5));
-			--end loop
-			output := unsigned(ks(1)(1)(63 downto 32));
-			
-			return output;
-	end function f_state_to_output;
-	
-		
-	function f_message_to_state (msg : in k_message) return k_state is
-		variable temp_state : k_state;
-		begin
-			temp_state := (others => (others => (others => '0')));
-			for ii in 0 to 8 loop
-				temp_state(ii / 5)(ii mod 5) := msg(ii);
-			end loop;
-			return temp_state;
-			
-	end function f_message_to_state;
-	
-	
+	constant input_governor_count : integer := FOLD;
+	signal input_governor : integer range 0 to input_governor_count - 1 := 0;
+	signal read_ack_i : std_logic := '0';
 
-	function f_State_XOR ( s : in k_state; m : in k_message) return k_state is
-		-- XOR a message with a state array
-		variable temp_state : k_state;
-		begin
-			temp_state := s;
-			for ii in 0 to 8 loop
-				temp_state(ii / 5)(ii mod 5) := s(ii / 5)(ii mod 5) XOR m(ii);
-			end loop;
-		return temp_state;
-	end function f_State_XOR;
-	
-	
 begin
 
-	process(clk)
-	variable temp_state : k_state;
-	variable m1, m2 : k_message;
-	variable temp_round : integer range 0 to KECCAK_ROUNDS - 1;
-	variable next_keccak_state_count : integer range 0 to KECCAK_STATE_COUNTER_MAX - 1;
 	
+	generate_keccak_1: for ii in 1 to KECCAK_ARRAY_LENGTH-1 generate
+		k_round : entity work.keccak_round
+		port map
+		(
+			clk => clk,
+			k_in => keccak_data_1(ii-1),
+			k_out => keccak_data_1(ii)
+		);
+	end generate generate_keccak_1;
+	
+	generate_keccak_2: for ii in 1 to KECCAK_ARRAY_LENGTH-1 generate
+		k_round : entity work.keccak_round
+		port map
+		(
+			clk => clk,
+			k_in => keccak_data_2(ii-1),
+			k_out => keccak_data_2(ii)
+		);
+	end generate generate_keccak_2;
+	
+	generate_keccak_3: for ii in 1 to KECCAK_ARRAY_LENGTH-1 generate
+		k_round : entity work.keccak_round
+		port map
+		(
+			clk => clk,
+			k_in => keccak_data_3(ii-1),
+			k_out => keccak_data_3(ii)
+		);
+	end generate generate_keccak_3;
+	
+	
+	
+	process(clk)
+	variable m1, m2 : k_message;
+	variable temp_state : k_state;
+
 	begin
 		if rising_edge(clk) then
-			if reset = '1' then
-				valid_counter <= 0;
-				result_valid_i <= '0';
-				keccak_state_counter <= 0;
-				keccak_state <= ROUND_A;
-				pipeline_counter <= 0;
-				round_index <= 0;
-				ready_i <= '0';
+		
+			-- manage input to keccak block 1
+			if keccak_data_1(KECCAK_ARRAY_LENGTH - 1).status = KECCAK_IN_PROCESS and keccak_data_1(KECCAK_ARRAY_LENGTH - 1).round /= 24 then
+				--recylce the data back into keccak block 1
+				keccak_data_1(0) <= keccak_data_1(KECCAK_ARRAY_LENGTH - 1);
+				input_governor <= input_governor + 1;
+				read_ack_i <= '0';
 			else
-				
-				if keccak_state_counter < KECCAK_STATE_COUNTER_MAX - 1 then
-					next_keccak_state_count := keccak_state_counter + 1;
+				-- input fresh data 
+				SLV_to_message(message, m1, m2);
+				keccak_data_1(0).state <= f_message_to_state(m1);
+				keccak_data_1(0).nonce <= nonce_in;
+				keccak_data_1(0).round <= 0;
+				k_message_pipe(0) <= m2;
+				if input_governor <  input_governor_count - 1 then  -- throttle input to the hash to minimize WIP on startup
+					keccak_data_1(0).status <= JUNK;
+					input_governor <= input_governor + 1;
+					read_ack_i <= '0';
 				else
-					next_keccak_state_count := 0;
-				end if;
-				keccak_state_counter <= next_keccak_state_count;
-				
-				pipeline_counter <= (keccak_state_counter) mod KECCAK_PIPELINE_STAGES;
-				keccak_state <= ROUND_A when keccak_state_counter < KECCAK_PIPELINE_STAGES else ROUND_B;
-				round_index <= ((keccak_state_counter) mod KECCAK_PIPELINE_STAGES)/2;
-				-- output results are valid when we are reading in new data in round 1
-				result_valid_i <= '1' when keccak_state = ROUND_A and valid_counter >= KECCAK_TOTAL_STAGES else '0';
-				-- start reading next input in time for round A start
-				ready_i <= '1' when (keccak_state_counter) < KECCAK_PIPELINE_STAGES else '0';
-				-- keep track of where we are in the pipeline
-				-- if pipeline_counter < KECCAK_PIPELINE_STAGES - 1 then
-					-- pipeline_counter <= pipeline_counter + 1;
-				-- else
-					-- pipeline_counter <= 0;
-					-- -- swap states every time we go through one full round.
-					-- if keccak_state = ROUND_A then
-						-- keccak_state <= ROUND_B;
-					-- else
-						-- keccak_state <= ROUND_A;
-					-- end if;
-				-- end if;	
-				
-				
-				if valid_counter < KECCAK_TOTAL_STAGES then
-					valid_counter <= valid_counter + 1;
-				end if;
-				-- else
-					-- if keccak_state = ROUND_A then
-						-- -- output results are valid when we are reading in new data in round 1
-						-- result_valid_i <= '1';
-					-- else 
-						-- result_valid_i <= '0';
-					-- end if;
-				-- end if;
-			end if;
-			
-			case keccak_state is
-				when ROUND_A => 
-					-- Keccak super round 1 - first half
-					-- absorb the input string into the keccak state 
-					SLV_to_message(message, m1, m2);
-					temp_state := f_message_to_state(m1);
-					k_state_pipe_1(0) <= f_keccak_A(temp_state); -- do first round and save
-					k_message_pipe(0) <= m2; -- save the rest of the message for later
-					--k_state_pipe_1(1) <= f_keccak_B(k_state_pipe_1(0),f_round_constant(0));
-					
-					-- super round 2 first half
-					temp_state := f_State_XOR(k_state_pipe_1(KECCAK_PIPELINE_STAGES - 1), k_message_pipe(KECCAK_PIPELINE_STAGES - 1));
-					k_state_pipe_2(0) <= f_keccak_A(temp_state);
-					--k_state_pipe_2(1) <= f_keccak_B(k_state_pipe_2(0),f_round_constant(0));
-					
-					--super round 3 first half
-					k_state_pipe_3(0) <= f_keccak_A(k_state_pipe_2(KECCAK_PIPELINE_STAGES - 1));
-					--k_state_pipe_3(1) <= f_keccak_B(k_state_pipe_3(0),f_round_constant(0));
-					
-					--advance the message shift register during round A
-					for ii in 1 to KECCAK_PIPELINE_STAGES - 1 loop
+					keccak_data_1(0).status <= KECCAK_IN_PROCESS;
+					input_governor <= 0;
+					read_ack_i <= '1';
+					--advance message shift register when reading new input.  messages are needed between keccak blocks 1 and 2
+					for ii in 1 to MESSAGE_ARRAY_LENGTH - 1 loop
 						k_message_pipe(ii) <= k_message_pipe(ii-1);
 					end loop;
-					
-					
-				when ROUND_B => 
-					--temp_round := 0 when round_index = 6 else KECCAK_PIPELINE_STAGES/2;
-					-- super round 1 second half
-					k_state_pipe_1(0) <= f_keccak_A(k_state_pipe_1(KECCAK_PIPELINE_STAGES - 1)); 				
-					--k_message_pipe(0) <= k_message_pipe(KECCAK_PIPELINE_STAGES - 1);
-					--k_state_pipe_1(1) <= f_keccak_B(k_state_pipe_1(0),f_round_constant(KECCAK_PIPELINE_STAGES/2));
-					
-					-- super round 2 second half
-					k_state_pipe_2(0) <= f_keccak_A(k_state_pipe_2(KECCAK_PIPELINE_STAGES - 1)); 
-					--k_state_pipe_2(1) <= f_keccak_B(k_state_pipe_2(0),f_round_constant(KECCAK_PIPELINE_STAGES/2));
-					
-					-- super round 3 second half
-					k_state_pipe_3(0) <= f_keccak_A(k_state_pipe_3(KECCAK_PIPELINE_STAGES - 1)); 
-					--k_state_pipe_3(1) <= f_keccak_B(k_state_pipe_3(0),f_round_constant(KECCAK_PIPELINE_STAGES/2));
-					
-				when others =>
-			end case;
+					--if nonce_in = x"00000004ECF83A53" then
+						--report "keccak register nonce in: " & to_hstring(nonce_in) & " m2: " & to_hstring(m2(0));
+					--end if;
+				end if;
+			end if;
+			--report "keccak nonce in: " & to_hstring(nonce_in) & " read_ack " & to_string(read_ack_i);
+			--report "keccak block 1 input " & to_hstring(keccak_data_1(0).nonce) & " round flag: " & to_string(keccak_data_1(0).round) & " status: " & to_string(keccak_data_1(0).status);
+			--report "keccak block 1 output " & to_hstring(keccak_data_1(KECCAK_ARRAY_LENGTH-1).nonce) & " round flag: " & to_string(keccak_data_1(KECCAK_ARRAY_LENGTH-1).round) & " status: " & to_string(keccak_data_1(KECCAK_ARRAY_LENGTH-1).status);
 			
+			-- for ii in 0 to KECCAK_ARRAY_LENGTH-1 loop
+			-- if keccak_data_1(ii).nonce = x"00000004ECF83A53" then
+				-- report "keccak block 1 state before round " & to_string(ii) & " : " & to_hstring(keccak_data_1(ii).state(0)(0)) & " round flag: " & to_string(keccak_data_1(ii).round) & " status: " & to_string(keccak_data_1(ii).status);
+			-- end if;
+			-- end loop;
 			
-			temp_round := 0 when (keccak_state = ROUND_B and pipeline_counter <= 0) or (keccak_state = ROUND_A and pipeline_counter > 0) else KECCAK_ROUNDS/2;
-			k_state_pipe_1(1) <= f_keccak_B(k_state_pipe_1(0),f_round_constant(temp_round));
-			k_state_pipe_2(1) <= f_keccak_B(k_state_pipe_2(0),f_round_constant(temp_round));
-			k_state_pipe_3(1) <= f_keccak_B(k_state_pipe_3(0),f_round_constant(temp_round));
+			-- entry to keccak block 2
+			-- if keccak_data_1(KECCAK_ARRAY_LENGTH - 1).nonce = x"00000004ECF83A53" then
+				-- report "keccak super round 2 m2: " & to_hstring(k_message_pipe(MESSAGE_ARRAY_LENGTH - 1)(0)) & " state: " & to_hstring(keccak_data_1(KECCAK_ARRAY_LENGTH - 1).state(0)(0));
+			-- end if;
+			if keccak_data_1(KECCAK_ARRAY_LENGTH - 1).status = KECCAK_IN_PROCESS and keccak_data_1(KECCAK_ARRAY_LENGTH - 1).round /= 24 then
+				--recylce the data back into keccak block 2
+				keccak_data_2(0) <= keccak_data_2(KECCAK_ARRAY_LENGTH - 1);
+			else
+				-- transition from block 1 to block 2
+				keccak_data_2(0) <= keccak_data_1(KECCAK_ARRAY_LENGTH - 1);
+				temp_state := f_State_XOR(keccak_data_1(KECCAK_ARRAY_LENGTH - 1).state, k_message_pipe(MESSAGE_ARRAY_LENGTH - 1));
+				keccak_data_2(0).state <= temp_state;
+				keccak_data_2(0).round <= 0;
+			end if;
+			-- transition from keccak block 2 to 3
+			if keccak_data_2(KECCAK_ARRAY_LENGTH - 1).status = KECCAK_IN_PROCESS and keccak_data_2(KECCAK_ARRAY_LENGTH - 1).round /= 24 then
+				keccak_data_3(0) <= keccak_data_3(KECCAK_ARRAY_LENGTH - 1);
+			else
+				keccak_data_3(0) <= keccak_data_2(KECCAK_ARRAY_LENGTH - 1);
+				keccak_data_3(0).round <= 0;
+				--result_valid_2 <= '1';
+				result_i <= f_state_to_output(keccak_data_3(KECCAK_ARRAY_LENGTH - 1).state);
+				nonce_out_i <= keccak_data_3(KECCAK_ARRAY_LENGTH - 1).nonce;
+			end if;
 
-			-- Iterate the rest of the rounds of keccak
-			for ii in 1 to KECCAK_PIPELINE_STAGES/2 - 1 loop
-				-- which round?
-				
-				temp_round := ii when (keccak_state = ROUND_B and pipeline_counter <= 2*ii) or (keccak_state = ROUND_A  and pipeline_counter > 2*ii) else ii + KECCAK_ROUNDS/2;
-						
-				k_state_pipe_1(2*ii) <= f_keccak_A(k_state_pipe_1(2*ii-1));
-				k_state_pipe_1(2*ii+1) <= f_keccak_B(k_state_pipe_1(2*ii),f_round_constant(temp_round));
-				
-				k_state_pipe_2(2*ii) <= f_keccak_A(k_state_pipe_2(2*ii-1));
-				k_state_pipe_2(2*ii+1) <= f_keccak_B(k_state_pipe_2(2*ii),f_round_constant(temp_round));
-				
-				k_state_pipe_3(2*ii) <= f_keccak_A(k_state_pipe_3(2*ii-1));
-				k_state_pipe_3(2*ii+1) <= f_keccak_B(k_state_pipe_3(2*ii),f_round_constant(temp_round));
-				
-				
-			end loop;
-			result_i <= f_state_to_output(k_state_pipe_3(KECCAK_PIPELINE_STAGES - 1));
-			--result_valid_ii <= result_valid_i;
+			--if nonce_out_i = x"00000004ECF83A53" then
+			--report "keccak out nonce: " & to_hstring(nonce_out_i) & " hash result: " & to_hstring(result_i);
+			--end if;
+			
 		end if;
 	end process;
-
-	result_valid <= result_valid_i;
+	
 	result <= result_i;
-	ready <= '1' when (reset = '0') and (ready_i = '1') else '0';
+	read_ack <= read_ack_i;
+	nonce_out <= nonce_out_i;
 	
 	
 end rtl;

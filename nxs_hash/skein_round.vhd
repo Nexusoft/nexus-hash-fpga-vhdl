@@ -127,8 +127,8 @@ begin
 					skein_pipe(pipe) <= skein_pipe(pipe - 1);
 					skein_pipe(pipe).state <= f_threefish_1(skein_pipe(pipe-1).state, round);
 					--threefish_state_retimining_array(round) <= f_threefish_1(skein_pipe(pipe-1).state, round);
-					pipe := pipe + 1;
-					skein_pipe(pipe) <= skein_pipe(pipe - 1); 
+					--pipe := pipe + 1;
+					--skein_pipe(pipe) <= skein_pipe(pipe - 1); 
 					--skein_pipe(pipe).state <= threefish_state_retimining_array(round);
 					pipe := pipe + 1;
 					round := round + 1;

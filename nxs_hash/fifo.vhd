@@ -39,6 +39,7 @@ architecture rtl of fifo is
 	signal full_i, empty_i : std_logic := '0';
 	signal max_count : integer range 0 to FIFO_DEPTH := 0;
 	signal dout_i : std_logic_vector(FIFO_WIDTH-1 downto 0);
+
 	
 begin
 	process(clk)

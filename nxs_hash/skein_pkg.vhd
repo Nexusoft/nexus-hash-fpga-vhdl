@@ -53,7 +53,7 @@ package skein_pkg is
 
 	
 	-- function prototypes
-	
+	function f_State_to_SLV ( state : in state_type) return std_logic_vector;
 	function f_Get_Subkey (	subkey_round : in integer range 0 to 20; tweak : in tweak_type; key : in key_type)
 							return state_type;
 	function f_State_Add ( s1 : in state_type; s2 : in state_type) return state_type;
@@ -69,6 +69,20 @@ package skein_pkg is
 end package skein_pkg;
 
 package body skein_pkg is
+
+	function f_State_to_SLV ( state : in state_type) return std_logic_vector is
+		-- convert an array of words to 1024 bit std_logic_vector
+		variable state_SLV : std_logic_vector(1023 downto 0);
+		begin
+			for ii in 0 to 15 loop
+				for jj in 0 to 7 loop
+					-- reverse the word order and byte order
+					state_SLV(64*ii+8*jj+7 downto 64*ii+8*jj) := std_logic_vector(state(15-ii)(8*((7-jj)+1)-1 downto 8*(7-jj)));
+				end loop;
+			end loop;
+		return state_SLV;
+	end function f_State_to_SLV;
+
 
 	function f_Get_Subkey (	subkey_round : in integer range 0 to 20; tweak : in tweak_type; key : in key_type)
 							return state_type is

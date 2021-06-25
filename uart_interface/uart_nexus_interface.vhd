@@ -93,26 +93,6 @@ architecture beh of uart_nexus_interface is
 	signal new_work_i	: std_logic := '0';  -- goes high when new work package was received from the uart and key2 and message2 are valid. 
 	
 	
-	-- generic fifo
-	-- component fifo is
-	-- generic
-	-- (
-		-- FIFO_WIDTH : natural := 1024;
-		-- FIFO_DEPTH : natural := 128
-    -- );
-	-- port 
-	-- (
-		-- clk		: in std_logic;
-		-- srst	: in std_logic;
-		-- din		: in std_logic_vector(FIFO_WIDTH-1 downto 0); -- data in
-		-- wr_en	: in std_logic; -- write enable
-		-- rd_en	: in  std_logic;
-		-- dout 	: out std_logic_vector(FIFO_WIDTH-1 downto 0);
-		-- full	: out std_logic;
-		-- empty   : out std_logic
-	-- );
-	-- end component fifo;
-
     
 begin
 	
