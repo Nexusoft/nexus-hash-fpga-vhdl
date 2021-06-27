@@ -1,9 +1,11 @@
 /work
 /nxs_hash_test
-/.Xil
+KCU105 top level/.Xil/
 *.o
 *.exe
 KCU105 top level/place directives results.txt
 KCU105 top level/vivado.log
 KCU105 top level/vivado.jou
 KCU105 top level/tight_setup_hold_pins.txt
+*.jou
+*.log

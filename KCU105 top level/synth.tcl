@@ -4,7 +4,7 @@ set_param general.maxThreads 8
 set outputDir ../../kcu105
 file mkdir $outputDir
 
-# set_part "xcku040-ffva1156-2-e"
+set_part "xcku040-ffva1156-2-e"
 set_property BOARD_PART xilinx.com:kcu105:1.7 [current_project]
 
 
@@ -32,13 +32,14 @@ read_vhdl -vhdl2008 KCU105_nxs_hash_top.vhd
 read_ip ../../kcu105_nxs_hash_half_size/kcu105_nxs_hash_half_size.srcs/sources_1/ip/clk_wiz_0/clk_wiz_0.xci
 # read constraints
 read_xdc KCU105_nexus_hash.xdc
-read_xdc hash_constraint_1.xdc
 
 # generate ip
 generate_target all [get_ips]
 # Synthesize Design
-synth_design -top KCU105_nxs_hash_top -part xcku040-ffva1156-2-e -directive PerformanceOptimized -shreg_min_size 5
+synth_design -top KCU105_nxs_hash_top -part xcku040-ffva1156-2-e -directive PerformanceOptimized -shreg_min_size 5 -retiming
 
+
+read_xdc hash_constraint_1.xdc
 #optimize design
 opt_design
 
