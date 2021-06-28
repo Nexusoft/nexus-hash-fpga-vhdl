@@ -46,5 +46,7 @@ opt_design
 write_checkpoint -force $outputDir/post_synth.dcp
 report_timing_summary -file $outputDir/post_synth_timing_summary.rpt
 report_utilization -file $outputDir/post_synth_util.rpt
+report_design_analysis -logic_level_distribution -file $outputDir/post_synth_logic_level_dist.rpt
+# report_timing -of_objects [report_design_analysis -end_point_clock clk_out_hash_clk_wiz_0 -logic_levels 10 -timing -return_timing_paths]
 
 
