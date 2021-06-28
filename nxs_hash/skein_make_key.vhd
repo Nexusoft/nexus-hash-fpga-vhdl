@@ -31,7 +31,7 @@ entity skein_make_key is
 
 architecture rtl of skein_make_key is
 
-	constant PIPELINE_STAGES : integer := 18; 
+	constant PIPELINE_STAGES : integer := 10; 
 	type skein_pipe_array_type is array (0 to PIPELINE_STAGES - 1) of skein_pipe_type;
 	signal skein_pipe : skein_pipe_array_type := (others => skein_pipe_init);
 	signal result : skein_pipe_type := skein_pipe_init;
@@ -42,6 +42,7 @@ begin
 	process(clk)
 		variable pipe : integer range 0 to PIPELINE_STAGES;
 		variable temp_message: state_type := (others => (others => '0'));
+		variable jj : integer range 0 to 15;
 	begin
 		if rising_edge(clk) then			
 			-- register inputs
@@ -57,15 +58,18 @@ begin
 			if skein_pipe(0).status = A_DONE then
 				skein_pipe(1).state <= (others =>(others => '0'));  -- in round 3 the message is all zeros
 			end if;
-			pipe := 2;
 			for ii in 0 to 15 loop
 				if skein_pipe(0).status = A_DONE then
 					skein_pipe(1).key(ii) <= state_i(ii);  -- the xor'd state becomes the new key
 				end if;
+			end loop;
+			pipe := 2;
+			for ii in 0 to 7 loop
+				jj := ii*2;
 				skein_pipe(pipe) <= skein_pipe(pipe-1);
 				if skein_pipe(pipe-1).status = A_DONE then
-					--xor last key word with each key word one pipeline stage at a time
-					skein_pipe(pipe).key(16) <= skein_pipe(pipe-1).key(16) XOR skein_pipe(pipe-1).key(ii);
+					--xor last key word with each key word two pipeline stages at a time
+					skein_pipe(pipe).key(16) <= skein_pipe(pipe-1).key(16) XOR skein_pipe(pipe-1).key(jj) XOR skein_pipe(pipe-1).key(jj+1);
 				end if;
 				pipe := pipe + 1;
 			end loop;
