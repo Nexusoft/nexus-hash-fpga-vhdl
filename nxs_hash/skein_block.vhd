@@ -18,7 +18,7 @@ use work.skein_pkg.all;
 -------------------------------------------------------------------------------  
 -- Ports
 -------------------------------------------------------------------------------  
-entity skein_round is 
+entity skein_block is 
 	
 	port
 	(
@@ -27,9 +27,9 @@ entity skein_round is
 		skein_out	: out skein_pipe_type;
 		latency		: out integer  -- number of clocks from first input to valid output for debug
 	);
-	end skein_round;
+	end skein_block;
 
-architecture rtl of skein_round is
+architecture rtl of skein_block is
 	
 	constant TF_ROUNDS : integer := 80; 
 	constant SUBKEY_ADDS :  integer := 21;
