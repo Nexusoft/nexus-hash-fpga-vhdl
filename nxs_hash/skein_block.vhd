@@ -53,9 +53,14 @@ architecture rtl of skein_block is
 	-- attribute retiming_backward of threefish_state_retimining_array: signal is 1;
 	--attribute use_dsp : string;
 	--attribute use_dsp of xxx : signal is "yes";
+
 	
 	
 begin
+
+	
+
+
 	
 	process(clk)
 		variable round : integer range 0 to TF_ROUNDS;
@@ -64,7 +69,7 @@ begin
 		variable tweak :  tweak_type;
 		
 	begin
-		if rising_edge(clk) then			
+		if rising_edge(clk) then	
 			
 			pipe := 0;  -- current pipeline stage (0 to latency)
 			round := 0;  -- current threefish round (0 to 79)

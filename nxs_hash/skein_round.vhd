@@ -3,7 +3,7 @@
 -- Aperture Mining, LLC
 -------------------------------------------------------------------------------
 -- Skein for Nexus
--- One round of 1024 bit skein - 80 rounds of threefish plus 21 subkey adds
+-- Two subkey add and eight rounds of threefish
 
 -------------------------------------------------------------------------------  
 -- Libraries
@@ -19,22 +19,25 @@ use work.skein_pkg.all;
 -- Ports
 -------------------------------------------------------------------------------  
 entity skein_round is 
+	generic
+	(
+		SUBKEY_BASE_ROUND : integer range 0 to 18 := 0;  -- starting subkey round.  we use this to limit the span of subkey rounds to only what is possible
+		TWEAK : tweak_type := T2  
+	);
 	
 	port
 	(
 		clk			: in std_logic;
 		skein_in	: in skein_pipe_type;
-		skein_out	: out skein_pipe_type;
-		latency		: out integer  -- number of clocks from first input to valid output for debug
+		skein_out	: out skein_pipe_type
 	);
 	end skein_round;
 
 architecture rtl of skein_round is
 	
-	constant TF_ROUNDS : integer := 80; 
-	constant SUBKEY_ADDS :  integer := 21;
-	constant EXTRA_STAGES : integer := 0;  --extra stages at the end for the optimizer to move around
-	constant TF_PIPELINE_STAGES : integer := TF_ROUNDS*3 + SUBKEY_ADDS*2 + 2 + EXTRA_STAGES; -- 80 threefish rounds plus 21 subkey adds + extra stages
+	constant TF_ROUNDS : integer := 8; 
+	constant SUBKEY_ADDS :  integer := 2;
+	constant TF_PIPELINE_STAGES : integer := TF_ROUNDS + SUBKEY_ADDS*2;
 	
 	
 	type skein_pipe_array_type is array (0 to TF_PIPELINE_STAGES - 1) of skein_pipe_type;
@@ -48,127 +51,103 @@ architecture rtl of skein_round is
 	
 	
 	type state_array_type is array (0 to TF_ROUNDS - 1) of state_type;
-	signal threefish_state_retimining_array : state_array_type := (others =>(others =>(others => '0')));
-	attribute retiming_backward : integer;
+	--signal threefish_state_retimining_array : state_array_type := (others =>(others =>(others => '0')));
+	--attribute retiming_backward : integer;
 	-- attribute retiming_backward of threefish_state_retimining_array: signal is 1;
 	--attribute use_dsp : string;
 	--attribute use_dsp of xxx : signal is "yes";
 	
+	--type subkey_round_list_type is (r0,r2);
+	signal subkey_round_state : unsigned(FOLD_RATIO_NUM_BITS-1 downto 0) := (others => '1'); --one bit for half size, two bits for quarter size, constant 0 for full size
+	
 	
 begin
+
 	
 	process(clk)
 		variable round : integer range 0 to TF_ROUNDS;
-		variable pipe : integer range 0 to TF_PIPELINE_STAGES - 1;
-		variable subkey_round : integer range 0 to SUBKEY_ADDS - 1;
-		variable tweak :  tweak_type;
+		variable pipe : integer range 0 to TF_PIPELINE_STAGES;
+		variable subkey_round : integer range 0 to 19;
+		variable temp_subkey : state_type;
 		
 	begin
-		if rising_edge(clk) then			
+		if rising_edge(clk) then	
+		
+			for ii in 0 to TF_PIPELINE_STAGES-1 loop
+				if skein_pipe(ii).nonce = x"00000004ECF83A53" then
+					--report " skein_pipe " & to_string(ii) & " state: " & to_hstring(skein_pipe(ii).state(0)) & " key: " & to_hstring(skein_pipe(ii).key(0)) & " loop count " & to_string(skein_pipe(ii).loop_count);
+				end if;
+			end loop;
+		
+			-- iterate through the subkey base rounds 
+			subkey_round_state <= subkey_round_state + 1;
 			
-			pipe := 0;  -- current pipeline stage (0 to latency)
-			round := 0;  -- current threefish round (0 to 79)
-			subkey_round := 0;  -- current subkey round (0 to 20)
-			
-			-- if skein_in.state(10) = x"00000004ECF83A53" then
-				-- trace <= 0;
-			-- end if;
-			
-			-- if skein_in.key(0) = x"BD008743310E06AA" then
-				-- trace2 <= 0;
-			-- end if;
-			
-			-- if trace < 1 then
-				-- trace <= trace + 1;
-				-- report "Round 2 state(" & to_string(trace) & "): " & to_hstring(skein_pipe(trace).state(0)) & " key: " & to_hstring(skein_pipe(trace).key(0)) & " tweak: " & to_hstring(skein_pipe(trace).tweak(0));
-				-- report "Round 2 nonce(" & to_string(trace) & "): " & to_hstring(skein_pipe(trace).nonce) & " status: " & to_string(skein_pipe(trace).status);
+			round := 0;  -- current threefish round (0 to 7)
+		
+			-- generate first subkey
+			--subkey_round := SUBKEY_BASE_ROUND + 2* to_integer(skein_in.loop_count);--to_integer(subkey_round_state);
+			subkey_round := SUBKEY_BASE_ROUND + 2*to_integer(subkey_round_state);
 
-			-- end if;
+			skein_pipe(0) <= skein_in;
+			temp_subkey := f_Get_Subkey(subkey_round, TWEAK, skein_in.key);
+			subkey(0) <= temp_subkey;
 			
-			-- if trace2 < 1 then
-				-- trace2 <= trace2 + 1;
-				-- report "Round 3 state(" & to_string(trace2) & "): " & to_hstring(skein_pipe(trace2).state(0)) & " key: " & to_hstring(skein_pipe(trace2).key(0)) & " tweak: " & to_hstring(skein_pipe(trace2).tweak(0));
-				-- report "Round 3 nonce(" & to_string(trace2) & "): " & to_hstring(skein_pipe(trace2).nonce) & " status: " & to_string(skein_pipe(trace2).status);
-			-- end if;
+			if skein_in.nonce = x"00000004ECF83A53" then
+				--report skein_round'INSTANCE_NAME & "subkey " & to_string(subkey_round) & " : " & to_hstring(temp_subkey(0)) & " tweak " & to_hstring(TWEAK(0)) & " key " & to_hstring(skein_in.key(0));
+			end if;
+			pipe := 1;
 			
-			
-			-- register inputs
-			skein_pipe(pipe) <= skein_in;
-			pipe := pipe + 1;
-			
-			-- update status
+			--add subkey to the state
 			skein_pipe(pipe) <= skein_pipe(pipe-1);
-			case skein_pipe(pipe-1).status is
-				when NOT_STARTED => 
-					skein_pipe(pipe).status <= A_IN_PROCESS;
-				when A_DONE =>
-					skein_pipe(pipe).status <= B_IN_PROCESS;
-				when others =>
-					skein_pipe(pipe).status <= JUNK;
-			end case;
+			skein_pipe(pipe).state <= f_State_Add(skein_pipe(pipe-1).state, subkey(0));
 			pipe := pipe + 1;
+			subkey_round := subkey_round + 1;
 			
-			-- 80 rounds of threefish with subkey adds
-			for ii in 1 to TF_ROUNDS/4 loop
-				
-				-- generate subkey
-				skein_pipe(pipe) <= skein_pipe(pipe-1);
-				tweak := T3 when skein_pipe(pipe-1).status = B_IN_PROCESS else T2;
-				subkey(subkey_round) <= f_Get_Subkey(subkey_round, tweak, skein_pipe(pipe-1).key);
+			-- four threefish rounds
+			for jj in 1 to 4 loop
+				skein_pipe(pipe) <= skein_pipe(pipe - 1);
+				skein_pipe(pipe).state <= f_threefish_1(skein_pipe(pipe-1).state, round);
+				--threefish_state_retimining_array(round) <= f_threefish_1(skein_pipe(pipe-1).state, round);
+				--pipe := pipe + 1;
+				--skein_pipe(pipe) <= skein_pipe(pipe - 1); 
+				--skein_pipe(pipe).state <= threefish_state_retimining_array(round);
 				pipe := pipe + 1;
-				
-				--add subkey to the state
-				skein_pipe(pipe) <= skein_pipe(pipe-1);
-				skein_pipe(pipe).state <= f_State_Add(skein_pipe(pipe-1).state, subkey(subkey_round));
-				pipe := pipe + 1;
-				subkey_round := subkey_round + 1;
-				
-				-- four threefish rounds
-				for jj in 1 to 4 loop
-					skein_pipe(pipe) <= skein_pipe(pipe - 1);
-					skein_pipe(pipe).state <= f_threefish_1(skein_pipe(pipe-1).state, round);
-					--threefish_state_retimining_array(round) <= f_threefish_1(skein_pipe(pipe-1).state, round);
-					--pipe := pipe + 1;
-					--skein_pipe(pipe) <= skein_pipe(pipe - 1); 
-					--skein_pipe(pipe).state <= threefish_state_retimining_array(round);
-					pipe := pipe + 1;
-					round := round + 1;
-				end loop;
+				round := round + 1;
 			end loop;
 			
-			-- generate final subkey
+			-- generate next subkey
 			skein_pipe(pipe) <= skein_pipe(pipe-1);
-			tweak := T3 when skein_pipe(pipe-1).status = B_IN_PROCESS else T2;
-			subkey(subkey_round) <= f_Get_Subkey(subkey_round, tweak, skein_pipe(pipe-1).key);
+			temp_subkey := f_Get_Subkey(subkey_round, TWEAK, skein_pipe(pipe - 1).key);
+			subkey(1) <= temp_subkey;
+			
+			if skein_pipe(pipe-1).nonce = x"00000004ECF83A53" then
+				--report skein_round'INSTANCE_NAME & "subkey " & to_string(subkey_round) & " : " & to_hstring(temp_subkey(0)) & " tweak " & to_hstring(TWEAK(0)) & " key " & to_hstring(skein_pipe(pipe-1).key(0));
+			end if;
 			pipe := pipe + 1;
 			
-			--add final subkey to the state
+			--add subkey to the state
 			skein_pipe(pipe) <= skein_pipe(pipe-1);
-			skein_pipe(pipe).state <= f_State_Add(skein_pipe(pipe-1).state, subkey(subkey_round));
+			skein_pipe(pipe).state <= f_State_Add(skein_pipe(pipe-1).state, subkey(1));
+			pipe := pipe + 1;
 			
-			-- update status
-			case skein_pipe(pipe-1).status is
-				when A_IN_PROCESS => 
-					skein_pipe(pipe).status <= A_DONE;
-				when B_IN_PROCESS =>
-					skein_pipe(pipe).status <= B_DONE;
-				when others =>
-					skein_pipe(pipe).status <= JUNK;
-			end case;
-			
-			for ii in 1 to EXTRA_STAGES loop
+			-- four threefish rounds
+			for jj in 1 to 4 loop
+				skein_pipe(pipe) <= skein_pipe(pipe - 1);
+				skein_pipe(pipe).state <= f_threefish_1(skein_pipe(pipe-1).state, round);
+				--threefish_state_retimining_array(round) <= f_threefish_1(skein_pipe(pipe-1).state, round);
+				--pipe := pipe + 1;
+				--skein_pipe(pipe) <= skein_pipe(pipe - 1); 
+				--skein_pipe(pipe).state <= threefish_state_retimining_array(round);
 				pipe := pipe + 1;
-				skein_pipe(pipe) <= skein_pipe(pipe-1);
+				round := round + 1;
 			end loop;
 			
-			-- final output
-			result_i <= skein_pipe(pipe);
-			latency <= pipe + round;
+			--skein_pipe(pipe-1).loop_count <= skein_pipe(pipe-1).loop_count + 1;
 			
 		end if;
 	end process;
 	
-	skein_out <= result_i;
+	skein_out <= skein_pipe(TF_PIPELINE_STAGES-1);
 	
 end rtl;
 		
