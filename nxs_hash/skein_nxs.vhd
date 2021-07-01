@@ -142,7 +142,8 @@ begin
 				skein_data_2_in(0).nonce <= message2(10);
 				--skein_data_2_in(0).loop_count <= (others => '0');
 				read_ack_i <= '1';
-				skein_data_3_in(0).key <= skein_make_key_out;
+				skein_data_3_in(0).key <= f_Get_First_Subkey(T3, skein_make_key_out);
+				skein_data_3_in(0).subkey_round <= 0;
 				skein_data_3_in(0).state <= (others =>(others => '0'));  -- in round 3 the message is all zeros
 				skein_data_3_in(0).nonce <= skein_make_key_nonce_out;
 				--skein_data_3_in(0).loop_count <= (others => '0');

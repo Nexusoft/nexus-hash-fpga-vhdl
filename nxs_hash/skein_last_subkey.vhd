@@ -42,18 +42,22 @@ begin
 
 	
 	process(clk)
+		variable temp_subkey_key : key_type;
 		variable temp_subkey : state_type;
+
 		
 	begin
 		if rising_edge(clk) then	
 			-- generate final subkey
 			skein_pipe(0) <= skein_in;
-			temp_subkey := f_Get_Subkey(20, TWEAK, skein_in.key);
-			subkey <= temp_subkey;
+			temp_subkey_key := skein_in.key; --f_Get_Next_Subkey(20, TWEAK, skein_in.key);
+			for ii in 0 to 15 loop
+				temp_subkey(ii) := temp_subkey_key(ii);
+			end loop;
 			--add subkey to the state
-			skein_pipe(1) <= skein_pipe(0);
-			skein_pipe(1).state <= f_State_Add(skein_pipe(0).state, subkey);	
+			skein_pipe(0).state <= f_State_Add(skein_in.state, temp_subkey);	
 			
+			skein_pipe(1) <= skein_pipe(0);
 			--if skein_in.nonce = x"00000004ECF83A53" then
 			--	report "final subkey 20 : " & to_hstring(temp_subkey(0)) & " tweak " & to_hstring(TWEAK(0)) & " key " & to_hstring(skein_in.key(0));
 			--end if;

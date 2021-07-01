@@ -43,11 +43,13 @@ package skein_pkg is
 	type skein_pipe_type is record
 		state  	: state_type;
 		key  	: key_type;
+		subkey_round : integer range 0 to 20;
 		nonce	: unsigned(63 downto 0);
 	end record skein_pipe_type;
 	
 	constant skein_pipe_init : skein_pipe_type := (state => (others =>(others => '0')),
                                               key => (others =>(others => '0')),
+											  subkey_round => 0,
 											  nonce => (others=> '0')
 											  );
 	
@@ -63,8 +65,9 @@ package skein_pkg is
 	
 	-- function prototypes
 	function f_State_to_SLV ( state : in state_type) return std_logic_vector;
-	function f_Get_Subkey (	subkey_round : in integer range 0 to 20; tweak : in tweak_type; key : in key_type)
-							return state_type;
+	function f_Get_Subkey (	subkey_round : in integer range 0 to 20; tweak : in tweak_type; key : in key_type) return state_type;
+	function f_Get_First_Subkey (tweak : in tweak_type; key : in key_type) return key_type;
+	function f_Get_Next_Subkey (subkey_round : in integer range 1 to 20; tweak : in tweak_type; previous_subkey : in key_type) return key_type;
 	function f_State_Add ( s1 : in state_type; s2 : in state_type) return state_type;
 	function f_State_XOR ( s1 : in state_type; s2 : in state_type) return state_type;
 	procedure mix (x0 : in unsigned(63 downto 0); 
@@ -106,6 +109,42 @@ package body skein_pkg is
 			subkey(15) := subkey(15) + to_unsigned(subkey_round,64);
 			return subkey;
 		end function f_Get_Subkey;
+	
+
+	function f_Get_First_Subkey (tweak : in tweak_type; key : in key_type)
+							return key_type is
+		-- for a given key and tweak, return the first subkey in key format (17 words)
+		variable subkey : key_type;
+		begin
+			subkey := key;
+			-- apply tweaks
+			subkey(13) := subkey(13) + tweak(0);
+			subkey(14) := subkey(14) + tweak(1);
+			return subkey;
+	end function f_Get_First_Subkey;					
+							
+
+	
+	function f_Get_Next_Subkey (subkey_round : in integer range 1 to 20; tweak : in tweak_type; previous_subkey : in key_type)
+							return key_type is
+		-- for a given subkey, round, and tweak, return the next subkey.   The subkey is stored in key format (extra word).  To get the state format use the first 16 words.  
+		-- This does not apply to the first subkey.  Use get_first_subkey instead.
+		variable subkey : key_type;
+		begin
+			-- rotate by 1 word
+			for ii in 0 to 16 loop
+				subkey(ii) := previous_subkey((ii+1) mod 17);
+			end loop;
+			--undo the previous tweaks
+			subkey(12) := subkey(12) - tweak((subkey_round-1) mod 3);
+			subkey(13) := subkey(13) - tweak(subkey_round mod 3);
+			subkey(14) := subkey(14) - to_unsigned(subkey_round-1,64);
+			-- apply new tweaks
+			subkey(13) := subkey(13) + tweak(subkey_round mod 3);
+			subkey(14) := subkey(14) + tweak((subkey_round + 1) mod 3);
+			subkey(15) := subkey(15) + to_unsigned(subkey_round,64);
+			return subkey;
+		end function f_Get_Next_Subkey;
 		
 	function f_State_Add ( s1 : in state_type; s2 : in state_type) return state_type is
 		-- add two state arrays

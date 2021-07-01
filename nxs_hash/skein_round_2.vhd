@@ -90,8 +90,6 @@ begin
 			end loop;
 			state_pipe(pipe) <= state_pipe(pipe-1);
 			pipe := pipe + 1;
-			--state_pipe(pipe) <= state_pipe(pipe-1);
-			--pipe := pipe + 1;
 			
 			temp_subkey := subkey_2_in when subkey_round_state = 0 else subkey_4_in;
 			--add subkey to the state
@@ -105,7 +103,7 @@ begin
 				round := round + 1;
 			end loop;
 			
-			--extra stages to match skein_3 length
+			--extra stages to match skein_3 length if needed
 			for ii in pipe to PIPELINE_STAGES-1 loop
 				state_pipe(ii) <= state_pipe(ii-1);
 			end loop;
