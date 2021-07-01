@@ -43,7 +43,7 @@ architecture beh of nexus_hash_tb is
 	signal clock_counter : natural := 0;
 	constant total_latency : integer := 477*2 + 500;
 	
-	constant nonce_starting_offset : integer := 1; 
+	constant nonce_starting_offset : integer := 321; 
 
 	
 begin

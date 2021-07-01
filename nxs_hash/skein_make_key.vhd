@@ -72,7 +72,7 @@ begin
 			for ii in 0 to 3 loop
 				jj := ii*4;
 				key_pipe(pipe) <= key_pipe(pipe-1);
-				--xor last key word with each key word four pipeline stages at a time
+				--xor last key word with each key word four at a time
 				key_pipe(pipe)(16) <= key_pipe(pipe-1)(16) XOR key_pipe(pipe-1)(jj) XOR key_pipe(pipe-1)(jj+1) XOR key_pipe(pipe-1)(jj+2) XOR key_pipe(pipe-1)(jj+3);
 				pipe := pipe + 1;
 			end loop;
