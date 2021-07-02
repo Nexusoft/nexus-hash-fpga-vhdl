@@ -33,11 +33,9 @@ package skein_pkg is
 	constant T2 : tweak_type := (x"00000000000000D8", x"B000000000000000", x"B0000000000000D8");
 	constant T3 : tweak_type := (x"0000000000000008", x"FF00000000000000", x"FF00000000000008");
 	
-	-- type skein_pipe_status_type is (JUNK, NOT_STARTED, A_IN_PROCESS, A_DONE, B_IN_PROCESS, B_DONE);
-
-	constant FOLD_RATIO : integer := 4;  -- number of times we repeat each skein round due to folding.  only 2 works. 
+	constant FOLD_RATIO : integer := 2;  -- number of times we repeat each skein round due to folding.  must be 2 or 4. 
 	constant FOLD_RATIO_NUM_BITS : integer := FOLD_RATIO/2; -- number of bits required to represent the fold count in unsigned number
-	constant SKEIN_ROUNDS_PER_BLOCK : integer := 10;  -- 80 threefishes divided by 8 threefishes per round
+	--constant SKEIN_ROUNDS_PER_BLOCK : integer := 10;  -- 80 threefishes divided by 8 threefishes per round
 	
 	-- record (like a struct in c) used to combine data for easier pipelining
 	type skein_pipe_type is record

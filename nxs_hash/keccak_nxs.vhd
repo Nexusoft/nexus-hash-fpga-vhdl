@@ -41,7 +41,7 @@ architecture rtl of keccak_nxs is
 	
 	--new method
 	constant PIPELINE_STAGES_PER_ROUND : integer := 2;
-	constant FOLD : integer := 4;  -- Number of clocks per hash.  Must be a factor of 24.  i.e. 1, 2, 3, 4, 6, 8, 12, 24
+	constant FOLD : integer := 2;  -- Number of clocks per hash.  Must be a factor of 24.  i.e. 1, 2, 3, 4, 6, 8, 12, 24
 	constant KECCAK_ARRAY_LENGTH : integer := KECCAK_ROUNDS/FOLD+1;
 	constant MESSAGE_ARRAY_LENGTH : integer := KECCAK_ARRAY_LENGTH*PIPELINE_STAGES_PER_ROUND-1;
 	type keccak_array_type is array (0 to KECCAK_ARRAY_LENGTH - 1) of keccak_pipe_type;

@@ -37,107 +37,31 @@ architecture rtl of skein_nxs is
 	signal read_ack_i : std_logic := '0';
 	signal result_i : std_logic_vector(1023 downto 0) := (others => '0');
 	signal nonce_out_i : unsigned (63 downto 0) := (others => '0');
-	
-	
-	--constant SKEIN_ROUND_INSTANCES : integer := SKEIN_ROUNDS_PER_BLOCK / FOLD_RATIO;
-	--constant SKEIN_DATA_ARRAY_LENGTH : integer := SKEIN_ROUND_INSTANCES;
-	--type skein_array_type is array (0 to SKEIN_DATA_ARRAY_LENGTH-1) of skein_pipe_type;
-	--type skein_2_array_type is array (0 to SKEIN_DATA_ARRAY_LENGTH-1) of skein_2_pipe_type;
-
-	--signal skein_data_2_in, skein_data_2_out : skein_2_array_type := (others => skein_2_pipe_init);
-	--signal skein_data_3_in, skein_data_3_out : skein_array_type := (others => skein_pipe_init);
-	--signal skein_3_last_subkey_out: skein_pipe_type := skein_pipe_init;
-	--signal skein_2_last_subkey_out: skein_2_pipe_type := skein_2_pipe_init;
-	signal skein_round_state : unsigned(FOLD_RATIO_NUM_BITS-1 downto 0) := (others => '0');
-	--signal skein_make_key_out : key_type := (others => (others => '0'));
-	--signal skein_make_key_in : state_type := (others => (others => '0'));
-	--signal skein_make_key_nonce_in, skein_make_key_nonce_out : unsigned (63 downto 0) := (others => '0');
-	
+	signal skein_round_state : integer range 0 to FOLD_RATIO-1 := 0;
 	signal skein_data_in, skein_data_out : skein_pipe_type := skein_pipe_init;
 	
 begin
 	
-	
-	-- generate_skein_2: for ii in 0 to SKEIN_ROUND_INSTANCES-1 generate
-		-- skein_round_2 : entity work.skein_round_2
-		-- port map
-		-- (
-			-- clk => clk,
-			-- state_in => skein_data_2_in(ii).state,
-			-- subkey_1_in => f_Get_Subkey(ii*4, T2, key2),
-			-- subkey_2_in => f_Get_Subkey(ii*4+1, T2, key2),
-			-- subkey_3_in => f_Get_Subkey(ii*4+2, T2, key2),
-			-- subkey_4_in => f_Get_Subkey(ii*4+3, T2, key2),
-			-- nonce_in => skein_data_2_in(ii).nonce,
-			-- state_out => skein_data_2_out(ii).state,
-			-- nonce_out => skein_data_2_out(ii).nonce
-		-- );
-	-- end generate generate_skein_2;
-	
-	-- skein_2_last_subkey : entity work.skein_2_last_subkey
-	-- port map
-	-- (
-		-- clk => clk,
-		-- subkey_in => f_Get_Subkey(20, T2, key2),
-		-- skein_in => skein_data_2_out(SKEIN_DATA_ARRAY_LENGTH-1),
-		-- skein_out => skein_2_last_subkey_out
-	-- );
-	
-	
-	-- skein_make_key: entity work.skein_make_key
-	-- port map
-	-- (
-		-- clk => clk,
-		-- state_in => skein_2_last_subkey_out.state,
-		-- message_in => message2,
-		-- nonce_in => skein_2_last_subkey_out.nonce,
-		-- key_out => skein_make_key_out,
-		-- nonce_out => skein_make_key_nonce_out
-	-- );
-	
-	-- generate_skein_3: for ii in 0 to SKEIN_ROUND_INSTANCES-1 generate
-		-- skein_round_3 : entity work.skein_round
-		-- generic map (
-			-- TWEAK => T3
-		-- )
-		-- port map
-		-- (
-			-- clk => clk,
-			-- skein_in => skein_data_3_in(ii),
-			-- skein_out => skein_data_3_out(ii)
-		-- );
-	-- end generate generate_skein_3;
-	
-	-- skein_last_subkey_3 : entity work.skein_last_subkey
-	-- port map
-	-- (
-		-- clk => clk,
-		-- skein_in => skein_data_3_out(SKEIN_DATA_ARRAY_LENGTH-1),
-		-- skein_out => skein_3_last_subkey_out
-	-- );
-	
-	
-		skein_half_block : entity work.skein_block_half
-		port map
-		(
-			clk => clk,
-			skein_in => skein_data_in,
-			skein_out => skein_data_out
-		);
+		generate_quarter_size: if FOLD_RATIO = 4 generate
+			skein_half_block : entity work.skein_block_half
+			port map
+			(
+				clk => clk,
+				skein_in => skein_data_in,
+				skein_out => skein_data_out
+			);
+		end generate generate_quarter_size;
 		
-		-- skein_make_key: entity work.skein_make_key
-		-- port map
-		-- (
-			-- clk => clk,
-			-- state_in => skein_data_out.state,
-			-- message_in => message2,
-			-- nonce_in => skein_data_out.nonce,
-			-- key_out => skein_make_key_out,
-			-- nonce_out => skein_make_key_nonce_out
-		-- );
-
-	
-
+		generate_half_size: if FOLD_RATIO = 2 generate
+			skein_half_block : entity work.skein_block
+			port map
+			(
+				clk => clk,
+				skein_in => skein_data_in,
+				skein_out => skein_data_out
+			);
+		end generate generate_half_size;
+		
 	
 	process(clk)
 		variable temp_state : state_type;
@@ -145,10 +69,13 @@ begin
 		variable temp_key : key_type;
 	begin
 		if rising_edge(clk) then
-			skein_round_state <= skein_round_state + 1;
-
-			case skein_round_state is
-			when "00" =>
+			if skein_round_state < FOLD_RATIO-1 then
+				skein_round_state <= skein_round_state + 1;
+			else
+				skein_round_state <= 0;
+			end if;
+			
+			if skein_round_state = 0 then
 				-- feed new data to skein block 2
 				skein_data_in.state <= message2;
 				skein_data_in.key <= f_Get_First_Subkey(T2, key2);
@@ -160,14 +87,7 @@ begin
 				if skein_data_out.nonce = x"00000004ECF83A53" then
 					report "skein round 3 output: " & to_hstring(skein_data_out.state(0));
 				end if;
-			when "01"|"11" => 
-				-- recycle
-				skein_data_in <= skein_data_out;
-				read_ack_i <= '0';
-				--if skein_data_out.nonce = x"00000004ECF83A53" then
-					--report "half way state: " & to_hstring(skein_data_out.state(0));
-				--end if;
-			when "10" => 
+			elsif skein_round_state = FOLD_RATIO/2 then
 				-- start skein block 3
 				skein_data_in <= skein_data_out;
 				temp_message := message2;
@@ -176,10 +96,16 @@ begin
 				read_ack_i <= '0';
 				if skein_data_out.nonce = x"00000004ECF83A53" then
 					temp_key := f_make_key(f_State_XOR(skein_data_out.state, message2));
-					report "skein round 2 output: " & to_hstring(skein_data_out.state(0)) & " next key " & to_hstring(temp_key(16));
+					report "skein round 2 output: " & to_hstring(skein_data_out.state(0)) & " next key " & to_hstring(temp_key(0));
 				end if;
-			when others =>
-			end case;
+			else
+				-- recycle
+				skein_data_in <= skein_data_out;
+				read_ack_i <= '0';
+				--if skein_data_out.nonce = x"00000004ECF83A53" then
+					--report "mid state: " & to_hstring(skein_data_out.state(0));
+				--end if;
+			end if;
 			
 		
 		end if;
