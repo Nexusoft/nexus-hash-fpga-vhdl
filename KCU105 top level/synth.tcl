@@ -17,7 +17,12 @@ read_vhdl ../uart/uart.vhd
 read_vhdl -vhdl2008 ../nxs_hash/fifo.vhd
 read_vhdl -vhdl2008 ../nxs_hash/skein_pkg.vhd
 read_vhdl -vhdl2008 ../nxs_hash/skein_round.vhd
+read_vhdl -vhdl2008 ../nxs_hash/skein_round_2.vhd
+
 read_vhdl -vhdl2008 ../nxs_hash/skein_make_key.vhd
+read_vhdl -vhdl2008 ../nxs_hash/skein_last_subkey.vhd
+read_vhdl -vhdl2008 ../nxs_hash/skein_2_last_subkey.vhd
+
 read_vhdl -vhdl2008 ../nxs_hash/skein_nxs.vhd
 read_vhdl -vhdl2008 ../nxs_hash/keccak_pkg.vhd
 read_vhdl -vhdl2008 ../nxs_hash/keccak_round.vhd
@@ -36,7 +41,8 @@ read_xdc KCU105_nexus_hash.xdc
 # generate ip
 generate_target all [get_ips]
 # Synthesize Design
-synth_design -top KCU105_nxs_hash_top -part xcku040-ffva1156-2-e -directive PerformanceOptimized -shreg_min_size 5 -retiming
+synth_design -top KCU105_nxs_hash_top -part xcku040-ffva1156-2-e -directive PerformanceOptimized -shreg_min_size 5
+# -retiming
 
 
 read_xdc hash_constraint_1.xdc
