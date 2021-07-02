@@ -3,7 +3,7 @@
 -- Aperture Mining, LLC
 -------------------------------------------------------------------------------
 -- Skein for Nexus
--- Two subkey add and eight rounds of threefish
+-- Two subkey adds and eight rounds of threefish
 
 -------------------------------------------------------------------------------  
 -- Libraries
@@ -21,8 +21,7 @@ use work.skein_pkg.all;
 entity skein_round is 
 	generic
 	(
-		SUBKEY_BASE_ROUND : integer range 0 to 18 := 0;  -- starting subkey round.  we use this to limit the span of subkey rounds to only what is possible
-		TWEAK : tweak_type := T2  
+		TWEAK : tweak_type := T3  
 	);
 	
 	port
