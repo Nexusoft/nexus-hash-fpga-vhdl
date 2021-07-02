@@ -57,36 +57,43 @@ begin
 			-- debug messages
 			for ii in 0 to PIPELINE_STAGES-1 loop
 				if skein_pipe(ii).nonce = x"00000004ECF83A53" then
-					report " skein_pipe " & to_string(ii) & " state: " & to_hstring(skein_pipe(ii).state(0)) & " next subkey: " & to_hstring(skein_pipe(ii).key(0));-- & " next subkey round " & to_string(skein_pipe(ii).subkey_round);
+					--report " skein_pipe " & to_string(ii) & " state: " & to_hstring(skein_pipe(ii).state(0)) & " next subkey: " & to_hstring(skein_pipe(ii).key(0));-- & " next subkey round " & to_string(skein_pipe(ii).subkey_round);
 				end if;
 			end loop;
-		
 			
-			round := 0;  -- current threefish round (0 to 7)
+			pipe := 0;
+			-- in skein 3 we need to make a key from the previous state
+			skein_pipe(pipe) <= skein_in;
+			if skein_in.loop_count = 2 then
+				skein_pipe(pipe).key <= f_Get_First_Subkey(T3,f_make_key(skein_in.state));
+				skein_pipe(pipe).state <= (others =>(others => '0'));  -- in round 3 the message is all zeros
+			end if;
+			-- in every other case we use the key we get
+			pipe := pipe + 1;
+			
 			for ii in 0 to 15 loop
-				temp_subkey(ii) := skein_in.key(ii);
+				temp_subkey(ii) := skein_pipe(pipe-1).key(ii);
 			end loop;
 			
-			if skein_in.nonce = x"00000004ECF83A53" then
-				report " subkey round 0 or 10 " & to_hstring(temp_subkey(0));
+			if skein_pipe(pipe-1).nonce = x"00000004ECF83A53" then
+				--report " subkey round 0 or 10 " & to_hstring(temp_subkey(0));
 			end if;
 
-			-- register incoming data and add the first subkey.  The incoming key is the first subkey.
-			skein_pipe(0) <= skein_in;
-			skein_pipe(0).state <= f_State_Add(skein_in.state, temp_subkey);
-			--subkey_round := skein_in.subkey_round + 1;
+			-- add the first subkey.  The incoming key is the first subkey.
+			skein_pipe(pipe) <= skein_pipe(pipe-1);
+			skein_pipe(pipe).state <= f_State_Add(skein_pipe(pipe-1).state, temp_subkey);
 			-- The first 10 subkey adds happen during the first pass through, the last 10 subkey adds happen in the next pass. 
-			subkey_round := 1 when (skein_in.loop_count) mod 2 = 0 else 11;
-			--skein_pipe(0).subkey_round <= subkey_round;
+			subkey_round := 1 when (skein_pipe(pipe-1).loop_count) mod 2 = 0 else 11;
 			-- Use tweak two for the first two passes through the block.  
-			tweak := T2 when skein_in.loop_count < 2 else T3;
+			tweak := T2 when skein_pipe(pipe-1).loop_count < 2 else T3;
 			-- generate and save the next subkey
-			temp_subkey_key := f_Get_Next_Subkey(subkey_round, tweak, skein_in.key);
-			skein_pipe(0).key <= temp_subkey_key;
-			pipe := 1;
+			temp_subkey_key := f_Get_Next_Subkey(subkey_round, tweak, skein_pipe(pipe-1).key);
+			skein_pipe(pipe).key <= temp_subkey_key;
+			pipe := pipe + 1;
 			subkey_round_offset := 2;
-			
-			-- four threefish rounds
+			round := 0;  -- current threefish round
+
+			-- first four threefish rounds
 			for jj in 1 to 4 loop
 				skein_pipe(pipe) <= skein_pipe(pipe - 1);
 				skein_pipe(pipe).state <= f_threefish_1(skein_pipe(pipe-1).state, round);
@@ -108,8 +115,6 @@ begin
 				skein_pipe(pipe) <= skein_pipe(pipe-1);
 				skein_pipe(pipe).state <= f_State_Add(skein_pipe(pipe-1).state, temp_subkey);
 				subkey_round := subkey_round_offset when (skein_pipe(pipe-1).loop_count) mod 2 = 0 else 10 + subkey_round_offset;
-				--subkey_round := skein_pipe(pipe-1).subkey_round + 1;
-				--skein_pipe(pipe).subkey_round <= subkey_round;
 				-- generate and save the next subkey
 				tweak := T2 when skein_pipe(pipe-1).loop_count < 2 else T3;
 				temp_subkey_key := f_Get_Next_Subkey(subkey_round, tweak, skein_pipe(pipe-1).key);

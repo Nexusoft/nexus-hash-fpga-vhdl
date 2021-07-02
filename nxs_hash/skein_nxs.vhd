@@ -34,33 +34,26 @@ entity skein_nxs is
 architecture rtl of skein_nxs is
 
 	
-	signal result_valid_i : std_logic := '0';
 	signal read_ack_i : std_logic := '0';
 	signal result_i : std_logic_vector(1023 downto 0) := (others => '0');
-	
-	signal latency : integer; --latency of the skein component for debug
-	--signal skein_in_i, skein_block_in, skein_block_out, skein_make_key_in : skein_pipe_type := skein_pipe_init;
-	constant input_governor_count : integer := FOLD_RATIO;
-	signal input_governor : integer range 0 to input_governor_count - 1 := 0;
 	signal nonce_out_i : unsigned (63 downto 0) := (others => '0');
 	
 	
-	constant SKEIN_ROUND_INSTANCES : integer := SKEIN_ROUNDS_PER_BLOCK / FOLD_RATIO;
-	constant SKEIN_DATA_ARRAY_LENGTH : integer := SKEIN_ROUND_INSTANCES;
-	type skein_array_type is array (0 to SKEIN_DATA_ARRAY_LENGTH-1) of skein_pipe_type;
-	type skein_2_array_type is array (0 to SKEIN_DATA_ARRAY_LENGTH-1) of skein_2_pipe_type;
+	--constant SKEIN_ROUND_INSTANCES : integer := SKEIN_ROUNDS_PER_BLOCK / FOLD_RATIO;
+	--constant SKEIN_DATA_ARRAY_LENGTH : integer := SKEIN_ROUND_INSTANCES;
+	--type skein_array_type is array (0 to SKEIN_DATA_ARRAY_LENGTH-1) of skein_pipe_type;
+	--type skein_2_array_type is array (0 to SKEIN_DATA_ARRAY_LENGTH-1) of skein_2_pipe_type;
 
-	signal skein_data_2_in, skein_data_2_out : skein_2_array_type := (others => skein_2_pipe_init);
-	signal skein_data_3_in, skein_data_3_out : skein_array_type := (others => skein_pipe_init);
-	signal skein_3_last_subkey_out: skein_pipe_type := skein_pipe_init;
-	signal skein_2_last_subkey_out: skein_2_pipe_type := skein_2_pipe_init;
+	--signal skein_data_2_in, skein_data_2_out : skein_2_array_type := (others => skein_2_pipe_init);
+	--signal skein_data_3_in, skein_data_3_out : skein_array_type := (others => skein_pipe_init);
+	--signal skein_3_last_subkey_out: skein_pipe_type := skein_pipe_init;
+	--signal skein_2_last_subkey_out: skein_2_pipe_type := skein_2_pipe_init;
 	signal skein_round_state : unsigned(FOLD_RATIO_NUM_BITS-1 downto 0) := (others => '0');
-	signal skein_make_key_out : key_type := (others => (others => '0'));
-	signal skein_make_key_in : state_type := (others => (others => '0'));
-	signal skein_make_key_nonce_in, skein_make_key_nonce_out : unsigned (63 downto 0) := (others => '0');
+	--signal skein_make_key_out : key_type := (others => (others => '0'));
+	--signal skein_make_key_in : state_type := (others => (others => '0'));
+	--signal skein_make_key_nonce_in, skein_make_key_nonce_out : unsigned (63 downto 0) := (others => '0');
 	
 	signal skein_data_in, skein_data_out : skein_pipe_type := skein_pipe_init;
-
 	
 begin
 	
@@ -161,7 +154,6 @@ begin
 				skein_data_in.key <= f_Get_First_Subkey(T2, key2);
 				skein_data_in.nonce <= message2(10);
 				skein_data_in.loop_count <= 0;
-				skein_data_in.subkey_round <= 0;
 				read_ack_i <= '1';
 				nonce_out_i <= skein_data_out.nonce;
 				result_i <= f_State_to_SLV(skein_data_out.state);
@@ -172,38 +164,22 @@ begin
 				-- recycle
 				skein_data_in <= skein_data_out;
 				read_ack_i <= '0';
-				if skein_data_out.nonce = x"00000004ECF83A53" then
-					report "half way state: " & to_hstring(skein_data_out.state(0));
-				end if;
+				--if skein_data_out.nonce = x"00000004ECF83A53" then
+					--report "half way state: " & to_hstring(skein_data_out.state(0));
+				--end if;
 			when "10" => 
 				-- start skein block 3
+				skein_data_in <= skein_data_out;
 				temp_message := message2;
 				temp_message(10) := skein_data_out.nonce;
-				skein_data_in.state <= (others =>(others => '0'));  -- in round 3 the message is all zeros
-				skein_data_in.key <= f_Get_First_Subkey(T3, f_make_key(f_State_XOR(skein_data_out.state, temp_message)));
-				skein_data_in.nonce <= skein_data_out.nonce;
-				skein_data_in.loop_count <= skein_data_out.loop_count;
-				skein_data_in.subkey_round <= 0;
+				skein_data_in.state <= f_State_XOR(skein_data_out.state, temp_message);  -- used to generate the next key inside the skein block
 				read_ack_i <= '0';
-				temp_key := f_make_key(f_State_XOR(skein_data_out.state, message2));
 				if skein_data_out.nonce = x"00000004ECF83A53" then
+					temp_key := f_make_key(f_State_XOR(skein_data_out.state, message2));
 					report "skein round 2 output: " & to_hstring(skein_data_out.state(0)) & " next key " & to_hstring(temp_key(16));
 				end if;
 			when others =>
 			end case;
-			
-
-			
-				
-			
-			
-			
-			--report to_string(to_integer(skein_round_state)) & " loop count " & to_string(to_integer(skein_make_key_out.loop_count));
-			
-			-- for ii in 1 to SKEIN_ROUND_INSTANCES-1 loop
-				-- skein_data_2_in(ii) <= skein_data_2_out(ii-1) when skein_round_state = 0 else skein_data_2_out(ii);
-				-- skein_data_3_in(ii) <= skein_data_3_out(ii-1) when skein_round_state = 0 else skein_data_3_out(ii);
-			-- end loop;
 			
 		
 		end if;
