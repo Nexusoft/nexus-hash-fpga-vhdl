@@ -50,6 +50,10 @@ begin
 			keccak_pipe(1) <= keccak_pipe(0);
 			keccak_pipe(1).state <= f_keccak_iota(f_keccak_chi(f_keccak_pi(keccak_pipe(0).state)), round_c);
 			keccak_pipe(1).round <= keccak_pipe(0).round + 1;
+			-- extra pipeline stages at the end for retiming
+			for ii in 2 to PIPELINE_STAGES-1 loop
+				keccak_pipe(ii) <= keccak_pipe(ii-1);
+			end loop;
 		end if;
 	end process;
 	

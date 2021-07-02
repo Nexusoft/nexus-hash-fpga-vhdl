@@ -18,6 +18,8 @@ read_vhdl -vhdl2008 ../nxs_hash/fifo.vhd
 read_vhdl -vhdl2008 ../nxs_hash/skein_pkg.vhd
 read_vhdl -vhdl2008 ../nxs_hash/skein_round.vhd
 read_vhdl -vhdl2008 ../nxs_hash/skein_round_2.vhd
+read_vhdl -vhdl2008 ../nxs_hash/skein_block_half.vhd
+
 
 read_vhdl -vhdl2008 ../nxs_hash/skein_make_key.vhd
 read_vhdl -vhdl2008 ../nxs_hash/skein_last_subkey.vhd
