@@ -23,12 +23,10 @@ entity keccak_nxs is
 	port
 	(
 		clk			: in std_logic;
-		--reset		: in std_logic;
 		read_ack	: out std_logic; 
 		message		: in std_logic_vector(1023 downto 0);  -- input to the hash
 		nonce_in	: in unsigned (63 downto 0);  -- nonce associated with the message for tracking purposes
 		result		: out unsigned(31 downto 0);  -- return the upper 32 bits of the hash result
-		--result_valid: out std_logic;
 		nonce_out	: out unsigned(63 downto 0)
 	);
 	end keccak_nxs;
@@ -37,35 +35,13 @@ architecture rtl of keccak_nxs is
 	
 	-- keccak pipeline types
 	constant KECCAK_ROUNDS : integer := 24;  -- each super round contains 24 rounds.
-	--constant KECCAK_PIPELINE_STAGES : integer := KECCAK_ROUNDS;  -- two stages per round for 12 rounds.  
-	--constant KECCAK_TOTAL_STAGES : integer := 6 * KECCAK_PIPELINE_STAGES;
-	--constant KECCAK_STATE_COUNTER_MAX : integer := KECCAK_ROUNDS * 2;  -- the state machine repeats every 48 clocks. 
-	--type k_state_array_type is array (0 to KECCAK_PIPELINE_STAGES - 1) of k_state;  -- keccak state pipeline type
-	--type k_message_array_type is array (0 to KECCAK_PIPELINE_STAGES - 1) of k_message;  -- pipeline array for the message chunks
-	--type keccak_state_type is (ROUND_A, ROUND_B);
 	
-	-- keccak state pipelines
-	--signal k_state_pipe_1 : k_state_array_type := (others => (others => (others => (others => '0'))));
-	--signal k_state_pipe_2 : k_state_array_type := (others => (others => (others => (others => '0'))));
-	--signal k_state_pipe_3 : k_state_array_type := (others => (others => (others => (others => '0'))));
-
-
-	-- message shift register
-	--signal k_message_pipe : k_message_array_type := (others => (others => (others => '0')));
-	
-	--signal round_index : integer range 0 to KECCAK_ROUNDS := 0;
 	signal result_i : unsigned(31 downto 0) := (others => '0');
-	--signal result_valid_i, result_valid_ii, result_valid_2 : std_logic := '0';
-	--signal valid_counter : integer range 0 to KECCAK_TOTAL_STAGES := 0;
-	--signal pipeline_counter : integer range 0 to KECCAK_PIPELINE_STAGES - 1 := 0;
-	--signal keccak_state_counter : integer range 0 to KECCAK_STATE_COUNTER_MAX - 1 := 0;
-	--signal keccak_state : keccak_state_type := ROUND_A;
-	--signal ready_i	: std_logic := '0';
 	signal nonce_out_i : unsigned(63 downto 0) := (others => '0');
 	
 	--new method
 	constant PIPELINE_STAGES_PER_ROUND : integer := 2;
-	constant FOLD : integer := 2;  -- Number of clocks per hash.  Must be a factor of 24.  i.e. 1, 2, 3, 4, 6, 8, 12, 24
+	constant FOLD : integer := 4;  -- Number of clocks per hash.  Must be a factor of 24.  i.e. 1, 2, 3, 4, 6, 8, 12, 24
 	constant KECCAK_ARRAY_LENGTH : integer := KECCAK_ROUNDS/FOLD+1;
 	constant MESSAGE_ARRAY_LENGTH : integer := KECCAK_ARRAY_LENGTH*PIPELINE_STAGES_PER_ROUND-1;
 	type keccak_array_type is array (0 to KECCAK_ARRAY_LENGTH - 1) of keccak_pipe_type;
