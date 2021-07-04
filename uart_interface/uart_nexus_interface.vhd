@@ -120,7 +120,7 @@ begin
 								register_byte_index <= register_byte_index + 1;
 							end if;
 							temp_word := std_logic_vector(skein_key2_reg(register_word_index));
-							temp_word(63 - 8*register_byte_index downto 63 - 8*register_byte_index - 7) := uart_rx_fifo_dout;
+							temp_word(7 + 8*register_byte_index downto 8*register_byte_index) := uart_rx_fifo_dout;  -- receive least significant bytes first
 							skein_key2_reg(register_word_index) <= unsigned(temp_word);
 							if register_word_index = KEY2_WORD_COUNT - 1 and register_byte_index = 7 then
 								current_rx_register <= MESSAGE2;
@@ -136,7 +136,7 @@ begin
 								register_byte_index <= register_byte_index + 1;
 							end if;
 							temp_word := std_logic_vector(skein_message2_reg(register_word_index));
-							temp_word(63 - 8*register_byte_index downto 63 - 8*register_byte_index - 7) := uart_rx_fifo_dout;
+							temp_word(7 + 8*register_byte_index downto 8*register_byte_index) := uart_rx_fifo_dout;
 							skein_message2_reg(register_word_index) <= unsigned(temp_word);
 							if register_word_index = MESSAGE2_WORD_COUNT - 1 and register_byte_index = 7 then
 								current_rx_register <= DONE;
@@ -233,7 +233,7 @@ begin
 							tx_state <= IDLE;
 						else
 							if uart_tx_fifo_full = '0' then
-								uart_tx_data <= nonce_slv(UART_TX_MESSAGE_FIFO_WIDTH - 1 - 8*sent_byte_count downto UART_TX_MESSAGE_FIFO_WIDTH - 1 - 8*sent_byte_count - 7);
+								uart_tx_data <= nonce_slv(7 + 8*sent_byte_count downto 8*sent_byte_count);  -- send least significant bytes first
 								uart_tx_wr_en <= '1';
 								sent_byte_count <= sent_byte_count + 1;
 							end if;
