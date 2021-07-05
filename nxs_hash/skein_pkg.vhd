@@ -135,13 +135,10 @@ package body skein_pkg is
 			for ii in 0 to 16 loop
 				subkey(ii) := previous_subkey((ii+1) mod 17);
 			end loop;
-			--undo the previous tweaks
+			--undo the previous tweaks and apply new tweaks
 			subkey(12) := subkey(12) - tweak((subkey_round-1) mod 3);
-			subkey(13) := subkey(13) - tweak(subkey_round mod 3);
-			subkey(14) := subkey(14) - to_unsigned(subkey_round-1,64);
-			-- apply new tweaks
-			subkey(13) := subkey(13) + tweak(subkey_round mod 3);
-			subkey(14) := subkey(14) + tweak((subkey_round + 1) mod 3);
+			--subkey(13) := subkey(13) - tweak(subkey_round mod 3) + tweak(subkey_round mod 3);  --these cancel
+			subkey(14) := subkey(14) - to_unsigned(subkey_round-1,64) + tweak((subkey_round + 1) mod 3);
 			subkey(15) := subkey(15) + to_unsigned(subkey_round,64);
 			return subkey;
 		end function f_Get_Next_Subkey;

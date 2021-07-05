@@ -53,7 +53,7 @@ begin
 		end generate generate_quarter_size;
 		
 		generate_half_size: if FOLD_RATIO = 2 generate
-			skein_half_block : entity work.skein_block
+			skein_block : entity work.skein_block
 			port map
 			(
 				clk => clk,

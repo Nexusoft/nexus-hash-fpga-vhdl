@@ -10,3 +10,4 @@ KCU105 top level/tight_setup_hold_pins.txt
 *.jou
 *.log
 KCU105 top level/synth_test.tcl
+sim_nexus_work_package_in_reversed_bytes.txt
