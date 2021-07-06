@@ -2,8 +2,8 @@
 # read implentation constraints
 read_xdc hash_constraint_1.xdc
 
-place_design -directive Auto -auto_directive_index 1 -timing_summary
-# place_design -directive AltSpreadLogic_medium -timing_summary
+# place_design -directive Auto -auto_directive_index 1 -timing_summary
+place_design -directive AltSpreadLogic_medium -timing_summary
 #AltSpreadLogic_medium
 # report_clock_utilization -file $outputDir/clock_util.rpt
 #
@@ -14,7 +14,7 @@ place_design -directive Auto -auto_directive_index 1 -timing_summary
 #phys_opt_design -directive AggressiveFanoutOpt
 #phys_opt_design -directive AlternateReplication
 phys_opt_design -directive Explore
-phys_opt_design -retime
+# phys_opt_design -retime
 #}
 write_checkpoint -force $outputDir/post_place.dcp
 report_utilization -file $outputDir/post_place_util.rpt
