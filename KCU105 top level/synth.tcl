@@ -37,7 +37,7 @@ read_xdc KCU105_nexus_hash.xdc
 # generate ip
 generate_target all [get_ips]
 # Synthesize Design
-synth_design -top KCU105_nxs_hash_top -part xcku040-ffva1156-2-e -directive AreaOptimized_medium -shreg_min_size 6
+synth_design -top KCU105_nxs_hash_top -part xcku040-ffva1156-2-e -directive FewerCarryChains -shreg_min_size 6
 
 
 read_xdc hash_constraint_1.xdc
