@@ -43,7 +43,7 @@ package skein_pkg is
 		key  	: key_type;
 		subkey_round : integer range 0 to 20;
 		nonce	: unsigned(63 downto 0);
-		loop_count	: integer range 0 to FOLD_RATIO-1;
+		loop_count	: integer range 0 to 3;
 	end record skein_pipe_type;
 	
 	constant skein_pipe_init : skein_pipe_type := (state => (others =>(others => '0')),
@@ -56,10 +56,12 @@ package skein_pkg is
 	type skein_2_pipe_type is record  -- no key
 		state  	: state_type;
 		nonce	: unsigned(63 downto 0);
+		loop_count	: integer range 0 to FOLD_RATIO-1;
 	end record skein_2_pipe_type;
 
 	constant skein_2_pipe_init : skein_2_pipe_type := (state => (others =>(others => '0')),
-													nonce => (others=> '0')
+													nonce => (others=> '0'),
+													loop_count => 0
 													);
 
 	
